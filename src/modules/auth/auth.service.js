@@ -66,8 +66,6 @@ export const register = async ({
   password,
   role,
   homeAddress,
-  homeLat,
-  homeLng,
   accessibilityNeed,
   userAgent,
   ipAddress
@@ -108,8 +106,6 @@ export const register = async ({
       passwordHash,
       role,
       homeAddress,
-      homeLat,
-      homeLng,
       accessibilityNeed
     });
   } catch (error) {

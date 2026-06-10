@@ -15,7 +15,11 @@ export const findUserByNationalCode = async (nationalCode) => {
       d.dis_id,
       s.sup_id,
       v.vol_id,
-      v.verification_status
+      v.verification_status,
+      v.is_online,
+      v.current_lat,
+      v.current_lng,
+      v.location_updated_at
     FROM users u
     LEFT JOIN disabled d ON d.user_id = u.user_id
     LEFT JOIN supervisors s ON s.user_id = u.user_id
@@ -57,7 +61,11 @@ export const findUserById = async (userId) => {
       d.dis_id,
       s.sup_id,
       v.vol_id,
-      v.verification_status
+      v.verification_status,
+      v.is_online,
+      v.current_lat,
+      v.current_lng,
+      v.location_updated_at
     FROM users u
     LEFT JOIN disabled d ON d.user_id = u.user_id
     LEFT JOIN supervisors s ON s.user_id = u.user_id
@@ -82,8 +90,6 @@ export const createUserWithProfile = async ({
   passwordHash,
   role,
   homeAddress,
-  homeLat,
-  homeLng,
   accessibilityNeed
 }) => {
   const client = await pool.connect();
@@ -138,18 +144,14 @@ export const createUserWithProfile = async ({
         INSERT INTO disabled (
           user_id,
           accessibility_need,
-          home_address,
-          home_lat,
-          home_lng
+          home_address
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3)
         `,
         [
           userId,
           accessibilityNeed || null,
-          homeAddress,
-          homeLat ?? null,
-          homeLng ?? null
+          homeAddress
         ]
       );
     }
@@ -159,17 +161,13 @@ export const createUserWithProfile = async ({
         `
         INSERT INTO volunteers (
           user_id,
-          home_address,
-          home_lat,
-          home_lng
+          home_address
         )
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2)
         `,
         [
           userId,
-          homeAddress,
-          homeLat ?? null,
-          homeLng ?? null
+          homeAddress
         ]
       );
     }

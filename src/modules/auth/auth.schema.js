@@ -46,7 +46,7 @@ export const registerSchema = z.object({
 
       birthDate: z
         .string()
-        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Birth date must be YYYY-MM-DD')
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Birth date must be Gregorian YYYY-MM-DD')
         .optional(),
 
       province: z
@@ -77,18 +77,6 @@ export const registerSchema = z.object({
         .min(3, 'Home address must be at least 3 characters')
         .optional(),
 
-      homeLat: z
-        .number()
-        .min(-90, 'Latitude must be between -90 and 90')
-        .max(90, 'Latitude must be between -90 and 90')
-        .optional(),
-
-      homeLng: z
-        .number()
-        .min(-180, 'Longitude must be between -180 and 180')
-        .max(180, 'Longitude must be between -180 and 180')
-        .optional(),
-
       accessibilityNeed: z
         .string()
         .trim()
@@ -111,18 +99,6 @@ export const registerSchema = z.object({
             message: 'Home address is required for this role'
           });
         }
-      }
-
-      const hasOnlyOneLocation =
-        (data.homeLat !== undefined && data.homeLng === undefined) ||
-        (data.homeLat === undefined && data.homeLng !== undefined);
-
-      if (hasOnlyOneLocation) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['homeLat'],
-          message: 'Both homeLat and homeLng must be provided together'
-        });
       }
     }),
 

@@ -4,10 +4,10 @@ export const validate = (schema) => {
   return (req, res, next) => {
     //Zod is checking
     const result = schema.safeParse({
-      body: req.body,
-      params: req.params,
-      query: req.query
-    });
+  body: req.body ?? {},
+  params: req.params ?? {},
+  query: req.query ?? {}
+});
 
     if (!result.success) {
       const fields = {};
