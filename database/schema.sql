@@ -1,5 +1,6 @@
 -- =========================
 -- DROP TABLES IF EXISTS
+-- WARNING: This deletes all old tables and all old records.
 -- =========================
 
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
@@ -73,6 +74,7 @@ CREATE TABLE refresh_tokens (
 
 -- =========================
 -- SUPERVISORS TABLE
+-- user 1 ---- 1 supervisor
 -- =========================
 
 CREATE TABLE supervisors (
@@ -91,6 +93,8 @@ CREATE TABLE supervisors (
 
 -- =========================
 -- DISABLED TABLE
+-- user 1 ---- 1 disabled
+-- supervisor 1 ---- n disabled
 -- =========================
 
 CREATE TABLE disabled (
@@ -100,11 +104,7 @@ CREATE TABLE disabled (
     sup_id INT,
 
     accessibility_need TEXT,
-
     home_address TEXT NOT NULL,
-
-    home_lat DECIMAL(10, 7),
-    home_lng DECIMAL(10, 7),
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -116,25 +116,14 @@ CREATE TABLE disabled (
     CONSTRAINT fk_disabled_supervisor
         FOREIGN KEY (sup_id)
         REFERENCES supervisors(sup_id)
-        ON DELETE SET NULL,
-
-    CONSTRAINT check_disabled_home_lat
-        CHECK (home_lat IS NULL OR home_lat BETWEEN -90 AND 90),
-
-    CONSTRAINT check_disabled_home_lng
-        CHECK (home_lng IS NULL OR home_lng BETWEEN -180 AND 180),
-
-    CONSTRAINT check_disabled_home_location_pair
-        CHECK (
-            (home_lat IS NULL AND home_lng IS NULL)
-            OR
-            (home_lat IS NOT NULL AND home_lng IS NOT NULL)
-        )
+        ON DELETE SET NULL
 );
 
 
 -- =========================
 -- VOLUNTEERS TABLE
+-- user 1 ---- 1 volunteer
+-- current location is used for matching
 -- =========================
 
 CREATE TABLE volunteers (
@@ -144,8 +133,11 @@ CREATE TABLE volunteers (
 
     home_address TEXT NOT NULL,
 
-    home_lat DECIMAL(10, 7),
-    home_lng DECIMAL(10, 7),
+    current_lat DECIMAL(10, 7),
+    current_lng DECIMAL(10, 7),
+    location_updated_at TIMESTAMP,
+
+    is_online BOOLEAN NOT NULL DEFAULT FALSE,
 
     verification_status VARCHAR(20) NOT NULL DEFAULT 'pending'
         CHECK (verification_status IN ('pending', 'approved', 'rejected')),
@@ -159,23 +151,24 @@ CREATE TABLE volunteers (
         REFERENCES users(user_id)
         ON DELETE CASCADE,
 
-    CONSTRAINT check_volunteer_home_lat
-        CHECK (home_lat IS NULL OR home_lat BETWEEN -90 AND 90),
+    CONSTRAINT check_volunteer_current_lat
+        CHECK (current_lat IS NULL OR current_lat BETWEEN -90 AND 90),
 
-    CONSTRAINT check_volunteer_home_lng
-        CHECK (home_lng IS NULL OR home_lng BETWEEN -180 AND 180),
+    CONSTRAINT check_volunteer_current_lng
+        CHECK (current_lng IS NULL OR current_lng BETWEEN -180 AND 180),
 
-    CONSTRAINT check_volunteer_home_location_pair
+    CONSTRAINT check_volunteer_current_location_pair
         CHECK (
-            (home_lat IS NULL AND home_lng IS NULL)
+            (current_lat IS NULL AND current_lng IS NULL)
             OR
-            (home_lat IS NOT NULL AND home_lng IS NOT NULL)
+            (current_lat IS NOT NULL AND current_lng IS NOT NULL)
         )
 );
 
 
 -- =========================
 -- VOLUNTEER DOCUMENTS TABLE
+-- volunteer 1 ---- n volunteer_docs
 -- =========================
 
 CREATE TABLE volunteer_docs (
@@ -210,6 +203,8 @@ CREATE TABLE volunteer_docs (
 
 -- =========================
 -- VOLUNTEER AVAILABILITY TABLE
+-- volunteer 1 ---- n volunteer_availability
+-- weekday: 0 to 6
 -- =========================
 
 CREATE TABLE volunteer_availability (
@@ -239,6 +234,10 @@ CREATE TABLE volunteer_availability (
 
 -- =========================
 -- SERVICE REQUESTS TABLE
+-- disabled 1 ---- n service_requests
+-- supervisor 1 ---- n service_requests
+-- origin location is required
+-- destination location is optional
 -- =========================
 
 CREATE TABLE service_requests (
@@ -308,6 +307,9 @@ CREATE TABLE service_requests (
 
 -- =========================
 -- REQUEST ACCEPTS TABLE
+-- service_request 1 ---- 1 request_accept
+-- volunteer 1 ---- n request_accept
+-- estimated distance and duration are saved here
 -- =========================
 
 CREATE TABLE request_accepts (
@@ -315,6 +317,14 @@ CREATE TABLE request_accepts (
 
     request_id INT NOT NULL UNIQUE,
     vol_id INT NOT NULL,
+
+    volunteer_lat_at_accept DECIMAL(10, 7),
+    volunteer_lng_at_accept DECIMAL(10, 7),
+
+    estimated_distance_meters INT,
+    estimated_duration_seconds INT,
+    route_provider VARCHAR(30),
+    route_calculated_at TIMESTAMP,
 
     accepted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMP,
@@ -331,12 +341,34 @@ CREATE TABLE request_accepts (
     CONSTRAINT fk_accept_volunteer
         FOREIGN KEY (vol_id)
         REFERENCES volunteers(vol_id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT check_accept_lat
+        CHECK (volunteer_lat_at_accept IS NULL OR volunteer_lat_at_accept BETWEEN -90 AND 90),
+
+    CONSTRAINT check_accept_lng
+        CHECK (volunteer_lng_at_accept IS NULL OR volunteer_lng_at_accept BETWEEN -180 AND 180),
+
+    CONSTRAINT check_accept_location_pair
+        CHECK (
+            (volunteer_lat_at_accept IS NULL AND volunteer_lng_at_accept IS NULL)
+            OR
+            (volunteer_lat_at_accept IS NOT NULL AND volunteer_lng_at_accept IS NOT NULL)
+        ),
+
+    CONSTRAINT check_estimated_distance_positive
+        CHECK (estimated_distance_meters IS NULL OR estimated_distance_meters >= 0),
+
+    CONSTRAINT check_estimated_duration_positive
+        CHECK (estimated_duration_seconds IS NULL OR estimated_duration_seconds >= 0)
 );
 
 
 -- =========================
 -- EMERGENCY ALERTS TABLE
+-- disabled 1 ---- n emergency_alerts
+-- supervisor 1 ---- n emergency_alerts
+-- emergency location is required
 -- =========================
 
 CREATE TABLE emergency_alerts (
@@ -386,6 +418,7 @@ CREATE TABLE emergency_alerts (
 -- =========================
 
 CREATE INDEX idx_users_national_code ON users(national_code);
+CREATE INDEX idx_users_phone ON users(phone);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_is_active ON users(is_active);
 
@@ -397,12 +430,16 @@ CREATE INDEX idx_disabled_sup_id ON disabled(sup_id);
 
 CREATE INDEX idx_volunteers_user_id ON volunteers(user_id);
 CREATE INDEX idx_volunteers_verification_status ON volunteers(verification_status);
+CREATE INDEX idx_volunteers_is_online ON volunteers(is_online);
+CREATE INDEX idx_volunteers_current_location ON volunteers(current_lat, current_lng);
+CREATE INDEX idx_volunteers_location_updated_at ON volunteers(location_updated_at);
 
 CREATE INDEX idx_volunteer_docs_vol_id ON volunteer_docs(vol_id);
 CREATE INDEX idx_volunteer_docs_review_status ON volunteer_docs(review_status);
 
 CREATE INDEX idx_volunteer_availability_vol_id ON volunteer_availability(vol_id);
 CREATE INDEX idx_volunteer_availability_weekday ON volunteer_availability(weekday);
+CREATE INDEX idx_volunteer_availability_active ON volunteer_availability(is_active);
 
 CREATE INDEX idx_service_requests_dis_id ON service_requests(dis_id);
 CREATE INDEX idx_service_requests_sup_id ON service_requests(sup_id);
