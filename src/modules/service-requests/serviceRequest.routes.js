@@ -38,4 +38,17 @@ router.post(
   asyncHandler(serviceRequestController.accept)
 );
 
+router.patch(
+  '/:requestId/finish',
+  requireApprovedVolunteer,
+  validate(requestIdSchema),
+  asyncHandler(serviceRequestController.finish)
+);
+
+router.patch(
+  '/:requestId/cancel',
+  validate(requestIdSchema),
+  asyncHandler(serviceRequestController.cancel)
+);
+
 export default router;

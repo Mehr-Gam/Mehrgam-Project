@@ -1,5 +1,3 @@
-//
-
 export const calculateDistanceMeters = ({ fromLat, fromLng, toLat, toLng }) => {
   const earthRadiusMeters = 6371000;
 

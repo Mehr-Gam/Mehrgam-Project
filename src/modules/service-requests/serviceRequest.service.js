@@ -3,13 +3,15 @@ import { calculateDistanceMeters, estimateDurationSeconds } from '../../utils/di
 
 import {
   acceptRequest,
+  cancelRequest,
   createServiceRequest,
   findAvailableRequestsForVolunteer,
   findDisabledBySupervisor,
-  findServiceRequestById,
   findRequestsByDisabled,
   findRequestsBySupervisor,
-  findVolunteerForMatching
+  findServiceRequestById,
+  findVolunteerForMatching,
+  finishRequest
 } from './serviceRequest.repository.js';
 
 const LOCATION_MAX_AGE_MINUTES = 15;
@@ -67,7 +69,9 @@ const formatAccept = ({ request, accept }) => {
       volunteerLngAtAccept: toNumberOrNull(accept.volunteer_lng_at_accept),
       estimatedDistanceMeters: accept.estimated_distance_meters,
       estimatedDurationSeconds: accept.estimated_duration_seconds,
-      estimatedDurationMinutes: Math.ceil(accept.estimated_duration_seconds / 60),
+      estimatedDurationMinutes: accept.estimated_duration_seconds
+        ? Math.ceil(accept.estimated_duration_seconds / 60)
+        : null,
       routeProvider: accept.route_provider,
       routeCalculatedAt: accept.route_calculated_at,
       acceptedAt: accept.accepted_at,
@@ -85,6 +89,12 @@ const ensureRequesterRole = (user) => {
       'Only disabled users or supervisors can create service requests',
       'REQUESTER_ROLE_REQUIRED'
     );
+  }
+};
+
+const ensureVolunteerRole = (user) => {
+  if (!user || user.role !== 'volunteer' || !user.volId) {
+    throw new ApiError(403, 'Volunteer role required', 'VOLUNTEER_ROLE_REQUIRED');
   }
 };
 
@@ -200,9 +210,7 @@ export const getMyServiceRequests = async (user) => {
 };
 
 export const getAvailableRequestsForMe = async (user) => {
-  if (!user || user.role !== 'volunteer' || !user.volId) {
-    throw new ApiError(403, 'Volunteer role required', 'VOLUNTEER_ROLE_REQUIRED');
-  }
+  ensureVolunteerRole(user);
 
   const volunteer = await findVolunteerForMatching(user.volId);
   ensureVolunteerCanMatch(volunteer);
@@ -235,9 +243,7 @@ export const getAvailableRequestsForMe = async (user) => {
 };
 
 export const acceptServiceRequestForMe = async ({ user, requestId }) => {
-  if (!user || user.role !== 'volunteer' || !user.volId) {
-    throw new ApiError(403, 'Volunteer role required', 'VOLUNTEER_ROLE_REQUIRED');
-  }
+  ensureVolunteerRole(user);
 
   const volunteer = await findVolunteerForMatching(user.volId);
   ensureVolunteerCanMatch(volunteer);
@@ -290,4 +296,68 @@ export const acceptServiceRequestForMe = async ({ user, requestId }) => {
     request: requestCheck.request,
     accept: requestCheck.accept
   });
+};
+
+export const finishServiceRequestForMe = async ({ user, requestId }) => {
+  ensureVolunteerRole(user);
+
+  const result = await finishRequest({
+    requestId,
+    volId: user.volId
+  });
+
+  if (result.type === 'not_found') {
+    throw new ApiError(404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+  }
+
+  if (result.type === 'not_owner') {
+    throw new ApiError(403, 'This request was not accepted by this volunteer', 'REQUEST_NOT_ACCEPTED_BY_VOLUNTEER');
+  }
+
+  if (result.type === 'invalid_status') {
+    throw new ApiError(409, 'Only in-progress requests can be finished', 'REQUEST_NOT_IN_PROGRESS');
+  }
+
+  return formatAccept({
+    request: result.request,
+    accept: result.accept
+  });
+};
+
+export const cancelServiceRequestForMe = async ({ user, requestId }) => {
+  if (!user || !['disabled', 'supervisor', 'volunteer'].includes(user.role)) {
+    throw new ApiError(403, 'Access denied', 'ACCESS_DENIED');
+  }
+
+  const result = await cancelRequest({
+    requestId,
+    user
+  });
+
+  if (result.type === 'not_found') {
+    throw new ApiError(404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+  }
+
+  if (result.type === 'not_owner') {
+    throw new ApiError(403, 'You are not allowed to cancel this request', 'REQUEST_CANCEL_NOT_ALLOWED');
+  }
+
+  if (result.type === 'invalid_status') {
+    throw new ApiError(409, 'This request cannot be cancelled', 'REQUEST_CANNOT_BE_CANCELLED');
+  }
+
+  return {
+    request: formatRequest(result.request),
+    accept: result.accept
+      ? {
+          acceptId: result.accept.accept_id,
+          requestId: result.accept.request_id,
+          volId: result.accept.vol_id,
+          status: result.accept.status,
+          acceptedAt: result.accept.accepted_at,
+          startedAt: result.accept.started_at,
+          finishedAt: result.accept.finished_at
+        }
+      : null
+  };
 };

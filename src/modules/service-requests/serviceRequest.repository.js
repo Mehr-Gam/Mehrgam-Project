@@ -25,6 +25,41 @@ const requestSelect = `
   JOIN users du ON du.user_id = d.user_id
 `;
 
+const requestReturning = `
+  request_id,
+  dis_id,
+  sup_id,
+  requester_user_id,
+  request_type,
+  requested_time,
+  origin_address,
+  origin_lat,
+  origin_lng,
+  destination_address,
+  destination_lat,
+  destination_lng,
+  description,
+  status,
+  created_at,
+  updated_at
+`;
+
+const acceptReturning = `
+  accept_id,
+  request_id,
+  vol_id,
+  volunteer_lat_at_accept,
+  volunteer_lng_at_accept,
+  estimated_distance_meters,
+  estimated_duration_seconds,
+  route_provider,
+  route_calculated_at,
+  accepted_at,
+  started_at,
+  finished_at,
+  status
+`;
+
 export const findDisabledById = async (disId) => {
   const result = await query(
     `
@@ -100,22 +135,7 @@ export const createServiceRequest = async ({
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING
-      request_id,
-      dis_id,
-      sup_id,
-      requester_user_id,
-      request_type,
-      requested_time,
-      origin_address,
-      origin_lat,
-      origin_lng,
-      destination_address,
-      destination_lat,
-      destination_lng,
-      description,
-      status,
-      created_at,
-      updated_at
+      ${requestReturning}
     `,
     [
       disId,
@@ -161,7 +181,6 @@ export const findRequestsBySupervisor = async (supId) => {
 
   return result.rows;
 };
-
 
 export const findServiceRequestById = async (requestId) => {
   const result = await query(
@@ -300,26 +319,11 @@ export const acceptRequest = async ({
       `
       UPDATE service_requests
       SET
-        status = 'accepted',
+        status = 'in_progress',
         updated_at = CURRENT_TIMESTAMP
       WHERE request_id = $1
       RETURNING
-        request_id,
-        dis_id,
-        sup_id,
-        requester_user_id,
-        request_type,
-        requested_time,
-        origin_address,
-        origin_lat,
-        origin_lng,
-        destination_address,
-        destination_lat,
-        destination_lng,
-        description,
-        status,
-        created_at,
-        updated_at
+        ${requestReturning}
       `,
       [requestId]
     );
@@ -334,23 +338,13 @@ export const acceptRequest = async ({
         estimated_distance_meters,
         estimated_duration_seconds,
         route_provider,
-        route_calculated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
-      RETURNING
-        accept_id,
-        request_id,
-        vol_id,
-        volunteer_lat_at_accept,
-        volunteer_lng_at_accept,
-        estimated_distance_meters,
-        estimated_duration_seconds,
-        route_provider,
         route_calculated_at,
-        accepted_at,
         started_at,
-        finished_at,
         status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'started')
+      RETURNING
+        ${acceptReturning}
       `,
       [
         requestId,
@@ -369,6 +363,222 @@ export const acceptRequest = async ({
       type: 'accepted',
       request: updateResult.rows[0],
       accept: acceptResult.rows[0]
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const finishRequest = async ({ requestId, volId }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const requestResult = await client.query(
+      `
+      SELECT
+        request_id,
+        status
+      FROM service_requests
+      WHERE request_id = $1
+      FOR UPDATE
+      `,
+      [requestId]
+    );
+
+    const request = requestResult.rows[0] || null;
+
+    if (!request) {
+      await client.query('ROLLBACK');
+      return { type: 'not_found' };
+    }
+
+    const acceptOwnerResult = await client.query(
+      `
+      SELECT
+        accept_id,
+        vol_id,
+        status
+      FROM request_accepts
+      WHERE request_id = $1
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [requestId]
+    );
+
+    const acceptOwner = acceptOwnerResult.rows[0] || null;
+
+    if (!acceptOwner || acceptOwner.vol_id !== volId) {
+      await client.query('ROLLBACK');
+      return { type: 'not_owner' };
+    }
+
+    if (request.status !== 'in_progress') {
+      await client.query('ROLLBACK');
+      return { type: 'invalid_status' };
+    }
+
+    const requestUpdateResult = await client.query(
+      `
+      UPDATE service_requests
+      SET
+        status = 'finished',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE request_id = $1
+      RETURNING
+        ${requestReturning}
+      `,
+      [requestId]
+    );
+
+    const acceptUpdateResult = await client.query(
+      `
+      UPDATE request_accepts
+      SET
+        status = 'finished',
+        finished_at = CURRENT_TIMESTAMP
+      WHERE request_id = $1
+      RETURNING
+        ${acceptReturning}
+      `,
+      [requestId]
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      type: 'finished',
+      request: requestUpdateResult.rows[0],
+      accept: acceptUpdateResult.rows[0]
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const canUserCancelRequest = ({ user, request, accept }) => {
+  if (user.role === 'disabled') {
+    return request.dis_id === user.disId;
+  }
+
+  if (user.role === 'supervisor') {
+    return request.sup_id === user.supId;
+  }
+
+  if (user.role === 'volunteer') {
+    return accept && accept.vol_id === user.volId;
+  }
+
+  return false;
+};
+
+export const cancelRequest = async ({ requestId, user }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const requestResult = await client.query(
+      `
+      SELECT
+        request_id,
+        dis_id,
+        sup_id,
+        requester_user_id,
+        request_type,
+        requested_time,
+        origin_address,
+        origin_lat,
+        origin_lng,
+        destination_address,
+        destination_lat,
+        destination_lng,
+        description,
+        status,
+        created_at,
+        updated_at
+      FROM service_requests
+      WHERE request_id = $1
+      FOR UPDATE
+      `,
+      [requestId]
+    );
+
+    const request = requestResult.rows[0] || null;
+
+    if (!request) {
+      await client.query('ROLLBACK');
+      return { type: 'not_found' };
+    }
+
+    const acceptResult = await client.query(
+      `
+      SELECT
+        ${acceptReturning}
+      FROM request_accepts
+      WHERE request_id = $1
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [requestId]
+    );
+
+    const accept = acceptResult.rows[0] || null;
+
+    if (!canUserCancelRequest({ user, request, accept })) {
+      await client.query('ROLLBACK');
+      return { type: 'not_owner' };
+    }
+
+    if (!['pending', 'in_progress'].includes(request.status)) {
+      await client.query('ROLLBACK');
+      return { type: 'invalid_status' };
+    }
+
+    const requestUpdateResult = await client.query(
+      `
+      UPDATE service_requests
+      SET
+        status = 'cancelled',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE request_id = $1
+      RETURNING
+        ${requestReturning}
+      `,
+      [requestId]
+    );
+
+    let acceptUpdate = null;
+
+    if (accept) {
+      const acceptUpdateResult = await client.query(
+        `
+        UPDATE request_accepts
+        SET status = 'cancelled'
+        WHERE request_id = $1
+        RETURNING
+          ${acceptReturning}
+        `,
+        [requestId]
+      );
+
+      acceptUpdate = acceptUpdateResult.rows[0];
+    }
+
+    await client.query('COMMIT');
+
+    return {
+      type: 'cancelled',
+      request: requestUpdateResult.rows[0],
+      accept: acceptUpdate
     };
   } catch (error) {
     await client.query('ROLLBACK');
