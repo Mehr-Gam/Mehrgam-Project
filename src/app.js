@@ -8,6 +8,7 @@ dotenv.config();
 
 import authRoutes from './modules/auth/auth.routes.js';
 import volunteerRoutes from './modules/volunteers/volunteer.routes.js';
+import serviceRequestRoutes from './modules/service-requests/serviceRequest.routes.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { ApiError } from './utils/ApiError.js';
 
@@ -36,6 +37,7 @@ app.get('/api/v1/health', (req, res) => {
 //Forwarding route to its file
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/volunteers', volunteerRoutes);
+app.use('/api/v1/service-requests', serviceRequestRoutes);
 
 app.use((req, res, next) => {
   next(new ApiError(404, 'Route not found'));

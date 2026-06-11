@@ -43,3 +43,26 @@ POST  /api/v1/volunteers/me/availability
 GET   /api/v1/volunteers/me/availability
 PATCH /api/v1/volunteers/me/availability/:availId/deactivate
 ```
+
+## Service request endpoints
+
+All service request endpoints need this header:
+
+```txt
+Authorization: Bearer ACCESS_TOKEN
+```
+
+```txt
+POST /api/v1/service-requests
+GET  /api/v1/service-requests/my
+GET  /api/v1/service-requests/available
+POST /api/v1/service-requests/:requestId/accept
+```
+
+### Notes
+
+- `POST /api/v1/service-requests` is for `disabled` and `supervisor` users.
+- If the requester is `disabled`, `disId` is taken from the access token.
+- If the requester is `supervisor`, `disId` must be sent in the body and must belong to that supervisor.
+- `GET /api/v1/service-requests/available` is for approved, online volunteers with fresh current location and matching availability.
+- Distance and duration are currently estimated with a simple Haversine calculation. Google Routes API can replace this later.
