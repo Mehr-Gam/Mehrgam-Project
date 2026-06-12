@@ -56,7 +56,9 @@ Authorization: Bearer ACCESS_TOKEN
 POST /api/v1/service-requests
 GET  /api/v1/service-requests/my
 GET  /api/v1/service-requests/available
-POST /api/v1/service-requests/:requestId/accept
+POST  /api/v1/service-requests/:requestId/accept
+PATCH /api/v1/service-requests/:requestId/finish
+PATCH /api/v1/service-requests/:requestId/cancel
 ```
 
 ### Notes
@@ -66,3 +68,27 @@ POST /api/v1/service-requests/:requestId/accept
 - If the requester is `supervisor`, `disId` must be sent in the body and must belong to that supervisor.
 - `GET /api/v1/service-requests/available` is for approved, online volunteers with fresh current location and matching availability.
 - Distance and duration are currently estimated with a simple Haversine calculation. Google Routes API can replace this later.
+
+
+## Emergency alert endpoints
+
+All emergency alert endpoints need this header:
+
+```txt
+Authorization: Bearer ACCESS_TOKEN
+```
+
+```txt
+POST  /api/v1/emergency-alerts
+GET   /api/v1/emergency-alerts/my
+PATCH /api/v1/emergency-alerts/:alertId/resolve
+PATCH /api/v1/emergency-alerts/:alertId/cancel
+```
+
+### Notes
+
+- Emergency alerts are for `disabled` and `supervisor` users.
+- If the requester is `disabled`, `disId` is taken from the access token.
+- If the disabled user has a supervisor, `sup_id` is saved automatically so the supervisor can see the alert.
+- If the requester is `supervisor`, `disId` must be sent in the body and must belong to that supervisor.
+- In this MVP, creating an emergency alert stores it with `alertStatus = sent`. Real police/ambulance integration can be added later.
