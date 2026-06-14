@@ -375,12 +375,12 @@ export const updateVolunteerVerificationStatus = async ({ volId, status }) => {
     `
     UPDATE volunteers
     SET
-      verification_status = $1,
+      verification_status = $1::varchar(20),
       verified_at = CASE
-        WHEN $1 = 'approved' THEN CURRENT_TIMESTAMP
+        WHEN $1::text = 'approved' THEN CURRENT_TIMESTAMP
         ELSE NULL
       END
-    WHERE vol_id = $2
+    WHERE vol_id = $2::int
     RETURNING
       vol_id,
       user_id,
