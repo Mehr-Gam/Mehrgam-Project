@@ -319,7 +319,7 @@ export const acceptRequest = async ({
       `
       UPDATE service_requests
       SET
-        status = 'in_progress',
+        status = 'accepted',
         updated_at = CURRENT_TIMESTAMP
       WHERE request_id = $1
       RETURNING
@@ -339,10 +339,10 @@ export const acceptRequest = async ({
         estimated_duration_seconds,
         route_provider,
         route_calculated_at,
-        started_at,
+        accepted_at,
         status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'started')
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'accepted')
       RETURNING
         ${acceptReturning}
       `,
@@ -363,6 +363,98 @@ export const acceptRequest = async ({
       type: 'accepted',
       request: updateResult.rows[0],
       accept: acceptResult.rows[0]
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const startRequest = async ({ requestId, volId }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const requestResult = await client.query(
+      `
+      SELECT
+        request_id,
+        status
+      FROM service_requests
+      WHERE request_id = $1
+      FOR UPDATE
+      `,
+      [requestId]
+    );
+
+    const request = requestResult.rows[0] || null;
+
+    if (!request) {
+      await client.query('ROLLBACK');
+      return { type: 'not_found' };
+    }
+
+    const acceptOwnerResult = await client.query(
+      `
+      SELECT
+        accept_id,
+        vol_id,
+        status
+      FROM request_accepts
+      WHERE request_id = $1
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [requestId]
+    );
+
+    const acceptOwner = acceptOwnerResult.rows[0] || null;
+
+    if (!acceptOwner || acceptOwner.vol_id !== volId) {
+      await client.query('ROLLBACK');
+      return { type: 'not_owner' };
+    }
+
+    if (request.status !== 'accepted' || acceptOwner.status !== 'accepted') {
+      await client.query('ROLLBACK');
+      return { type: 'invalid_status' };
+    }
+
+    const requestUpdateResult = await client.query(
+      `
+      UPDATE service_requests
+      SET
+        status = 'in_progress',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE request_id = $1
+      RETURNING
+        ${requestReturning}
+      `,
+      [requestId]
+    );
+
+    const acceptUpdateResult = await client.query(
+      `
+      UPDATE request_accepts
+      SET
+        status = 'started',
+        started_at = CURRENT_TIMESTAMP
+      WHERE request_id = $1
+      RETURNING
+        ${acceptReturning}
+      `,
+      [requestId]
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      type: 'started',
+      request: requestUpdateResult.rows[0],
+      accept: acceptUpdateResult.rows[0]
     };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -418,7 +510,7 @@ export const finishRequest = async ({ requestId, volId }) => {
       return { type: 'not_owner' };
     }
 
-    if (request.status !== 'in_progress') {
+    if (request.status !== 'in_progress' || acceptOwner.status !== 'started') {
       await client.query('ROLLBACK');
       return { type: 'invalid_status' };
     }
@@ -538,7 +630,7 @@ export const cancelRequest = async ({ requestId, user }) => {
       return { type: 'not_owner' };
     }
 
-    if (!['pending', 'in_progress'].includes(request.status)) {
+    if (!['pending', 'accepted', 'in_progress'].includes(request.status)) {
       await client.query('ROLLBACK');
       return { type: 'invalid_status' };
     }

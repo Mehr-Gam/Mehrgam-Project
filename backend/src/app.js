@@ -11,6 +11,7 @@ import volunteerRoutes from './modules/volunteers/volunteer.routes.js';
 import serviceRequestRoutes from './modules/service-requests/serviceRequest.routes.js';
 import emergencyAlertRoutes from './modules/emergency-alerts/emergencyAlert.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
+import mapRoutes from './modules/maps/map.routes.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { ApiError } from './utils/ApiError.js';
 
@@ -41,6 +42,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/volunteers', volunteerRoutes);
 app.use('/api/v1/service-requests', serviceRequestRoutes);
 app.use('/api/v1/emergency-alerts', emergencyAlertRoutes);
+app.use('/api/v1/maps', mapRoutes);
 app.use('/api/v1/admin', adminRoutes);
 
 app.use((req, res, next) => {

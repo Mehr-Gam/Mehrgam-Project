@@ -38,6 +38,14 @@ router.post(
   asyncHandler(serviceRequestController.accept)
 );
 
+
+router.patch(
+  '/:requestId/start',
+  requireApprovedVolunteer,
+  validate(requestIdSchema),
+  asyncHandler(serviceRequestController.start)
+);
+
 router.patch(
   '/:requestId/finish',
   requireApprovedVolunteer,

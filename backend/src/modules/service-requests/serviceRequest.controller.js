@@ -48,6 +48,18 @@ export const accept = async (req, res) => {
   });
 };
 
+export const start = async (req, res) => {
+  const result = await serviceRequestService.startServiceRequestForMe({
+    user: req.user,
+    requestId: req.validated.params.requestId
+  });
+
+  res.json({
+    success: true,
+    data: result
+  });
+};
+
 export const finish = async (req, res) => {
   const result = await serviceRequestService.finishServiceRequestForMe({
     user: req.user,

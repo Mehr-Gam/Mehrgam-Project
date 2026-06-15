@@ -1,5 +1,5 @@
 import { ApiError } from '../../utils/ApiError.js';
-import { calculateDistanceMeters, estimateDurationSeconds } from '../../utils/distance.js';
+import { getRouteEstimate, tryReverseGeocodeAddress } from '../maps/map.service.js';
 
 import {
   acceptRequest,
@@ -11,17 +11,51 @@ import {
   findRequestsBySupervisor,
   findServiceRequestById,
   findVolunteerForMatching,
-  finishRequest
+  finishRequest,
+  startRequest
 } from './serviceRequest.repository.js';
 
-const LOCATION_MAX_AGE_MINUTES = 15;
-const ROUTE_PROVIDER = 'simple_haversine';
+const LOCATION_MAX_AGE_MINUTES = Number(process.env.LOCATION_MAX_AGE_MINUTES || 15);
+const MAX_MATCH_DISTANCE_METERS = Number(process.env.MAX_MATCH_DISTANCE_METERS || 5000);
 
 const toNumberOrNull = (value) => {
   return value === null || value === undefined ? null : Number(value);
 };
 
+const normalizeOptionalText = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const text = String(value).trim();
+  return text ? text : null;
+};
+
+const formatPoint = ({ address, lat, lng }) => {
+  if (lat === null || lat === undefined || lng === null || lng === undefined) {
+    return null;
+  }
+
+  return {
+    address: address || null,
+    lat: toNumberOrNull(lat),
+    lng: toNumberOrNull(lng)
+  };
+};
+
 const formatRequest = (request) => {
+  const origin = formatPoint({
+    address: request.origin_address,
+    lat: request.origin_lat,
+    lng: request.origin_lng
+  });
+
+  const destination = formatPoint({
+    address: request.destination_address,
+    lat: request.destination_lat,
+    lng: request.destination_lng
+  });
+
   return {
     requestId: request.request_id,
     disId: request.dis_id,
@@ -29,12 +63,21 @@ const formatRequest = (request) => {
     requesterUserId: request.requester_user_id || null,
     requestType: request.request_type,
     requestedTime: request.requested_time,
-    originAddress: request.origin_address || null,
-    originLat: toNumberOrNull(request.origin_lat),
-    originLng: toNumberOrNull(request.origin_lng),
-    destinationAddress: request.destination_address || null,
-    destinationLat: toNumberOrNull(request.destination_lat),
-    destinationLng: toNumberOrNull(request.destination_lng),
+
+    // Backward compatible flat fields
+    originAddress: origin?.address || null,
+    originLat: origin?.lat ?? null,
+    originLng: origin?.lng ?? null,
+    destinationAddress: destination?.address || null,
+    destinationLat: destination?.lat ?? null,
+    destinationLng: destination?.lng ?? null,
+
+    // Easier for frontend map forms
+    points: {
+      origin,
+      destination
+    },
+
     description: request.description || null,
     status: request.status,
     disabled: request.disabled_first_name
@@ -48,13 +91,19 @@ const formatRequest = (request) => {
   };
 };
 
-const formatRequestWithEstimate = ({ request, distanceMeters, durationSeconds }) => {
+const formatRequestWithEstimate = ({ request, routeEstimate, maxMatchDistanceMeters }) => {
+  const distanceMeters = routeEstimate.distanceMeters;
+  const durationSeconds = routeEstimate.durationSeconds;
+
   return {
     ...formatRequest(request),
     approxDistanceMeters: distanceMeters,
     approxDurationSeconds: durationSeconds,
     approxDurationMinutes: Math.ceil(durationSeconds / 60),
-    routeProvider: ROUTE_PROVIDER
+    routeProvider: routeEstimate.provider,
+    routeIsFallback: routeEstimate.isFallback,
+    maxMatchDistanceMeters,
+    isInsideMatchRadius: distanceMeters <= maxMatchDistanceMeters
   };
 };
 
@@ -131,6 +180,16 @@ const ensureVolunteerCanMatch = (volunteer) => {
   }
 };
 
+const resolveAddressIfMissing = async ({ address, lat, lng }) => {
+  const normalizedAddress = normalizeOptionalText(address);
+
+  if (normalizedAddress) {
+    return normalizedAddress;
+  }
+
+  return tryReverseGeocodeAddress({ lat, lng });
+};
+
 export const createMyServiceRequest = async ({ user, data }) => {
   ensureRequesterRole(user);
 
@@ -171,16 +230,31 @@ export const createMyServiceRequest = async ({ user, data }) => {
     supId = user.supId;
   }
 
+  const originAddress = await resolveAddressIfMissing({
+    address: data.originAddress,
+    lat: data.originLat,
+    lng: data.originLng
+  });
+
+  const hasDestination = data.destinationLat !== undefined && data.destinationLng !== undefined;
+  const destinationAddress = hasDestination
+    ? await resolveAddressIfMissing({
+        address: data.destinationAddress,
+        lat: data.destinationLat,
+        lng: data.destinationLng
+      })
+    : normalizeOptionalText(data.destinationAddress);
+
   const request = await createServiceRequest({
     disId,
     supId,
     requesterUserId: user.userId,
     requestType: data.requestType,
     requestedTime: data.requestedTime,
-    originAddress: data.originAddress,
+    originAddress,
     originLat: data.originLat,
     originLng: data.originLng,
-    destinationAddress: data.destinationAddress,
+    destinationAddress,
     destinationLat: data.destinationLat,
     destinationLng: data.destinationLng,
     description: data.description
@@ -220,26 +294,27 @@ export const getAvailableRequestsForMe = async (user) => {
   const volunteerLat = Number(volunteer.current_lat);
   const volunteerLng = Number(volunteer.current_lng);
 
-  const requestsWithEstimate = requests.map((request) => {
-    const distanceMeters = calculateDistanceMeters({
-      fromLat: volunteerLat,
-      fromLng: volunteerLng,
-      toLat: Number(request.origin_lat),
-      toLng: Number(request.origin_lng)
-    });
+  const requestsWithEstimate = await Promise.all(
+    requests.map(async (request) => {
+      const routeEstimate = await getRouteEstimate({
+        originLat: volunteerLat,
+        originLng: volunteerLng,
+        destinationLat: Number(request.origin_lat),
+        destinationLng: Number(request.origin_lng),
+        useExternalProvider: false
+      });
 
-    const durationSeconds = estimateDurationSeconds({ distanceMeters });
-
-    return formatRequestWithEstimate({
-      request,
-      distanceMeters,
-      durationSeconds
-    });
-  });
-
-  return requestsWithEstimate.sort(
-    (first, second) => first.approxDistanceMeters - second.approxDistanceMeters
+      return formatRequestWithEstimate({
+        request,
+        routeEstimate,
+        maxMatchDistanceMeters: MAX_MATCH_DISTANCE_METERS
+      });
+    })
   );
+
+  return requestsWithEstimate
+    .filter((request) => request.approxDistanceMeters <= MAX_MATCH_DISTANCE_METERS)
+    .sort((first, second) => first.approxDistanceMeters - second.approxDistanceMeters);
 };
 
 export const acceptServiceRequestForMe = async ({ user, requestId }) => {
@@ -257,23 +332,30 @@ export const acceptServiceRequestForMe = async ({ user, requestId }) => {
     throw new ApiError(404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
   }
 
-  const distanceMeters = calculateDistanceMeters({
-    fromLat: volunteerLat,
-    fromLng: volunteerLng,
-    toLat: Number(request.origin_lat),
-    toLng: Number(request.origin_lng)
+  const routeEstimate = await getRouteEstimate({
+    originLat: volunteerLat,
+    originLng: volunteerLng,
+    destinationLat: Number(request.origin_lat),
+    destinationLng: Number(request.origin_lng),
+    useExternalProvider: true
   });
 
-  const durationSeconds = estimateDurationSeconds({ distanceMeters });
+  if (routeEstimate.distanceMeters > MAX_MATCH_DISTANCE_METERS) {
+    throw new ApiError(
+      403,
+      'Service request is outside volunteer matching radius',
+      'REQUEST_OUTSIDE_MATCH_RADIUS'
+    );
+  }
 
   const requestCheck = await acceptRequest({
     requestId,
     volId: user.volId,
     volunteerLatAtAccept: volunteerLat,
     volunteerLngAtAccept: volunteerLng,
-    estimatedDistanceMeters: distanceMeters,
-    estimatedDurationSeconds: durationSeconds,
-    routeProvider: ROUTE_PROVIDER
+    estimatedDistanceMeters: routeEstimate.distanceMeters,
+    estimatedDurationSeconds: routeEstimate.durationSeconds,
+    routeProvider: routeEstimate.provider
   });
 
   if (requestCheck.type === 'not_found') {
@@ -298,6 +380,36 @@ export const acceptServiceRequestForMe = async ({ user, requestId }) => {
   });
 };
 
+export const startServiceRequestForMe = async ({ user, requestId }) => {
+  ensureVolunteerRole(user);
+
+  const result = await startRequest({
+    requestId,
+    volId: user.volId
+  });
+
+  if (result.type === 'not_found') {
+    throw new ApiError(404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+  }
+
+  if (result.type === 'not_owner') {
+    throw new ApiError(
+      403,
+      'This request was not accepted by this volunteer',
+      'REQUEST_NOT_ACCEPTED_BY_VOLUNTEER'
+    );
+  }
+
+  if (result.type === 'invalid_status') {
+    throw new ApiError(409, 'Only accepted requests can be started', 'REQUEST_NOT_ACCEPTED');
+  }
+
+  return formatAccept({
+    request: result.request,
+    accept: result.accept
+  });
+};
+
 export const finishServiceRequestForMe = async ({ user, requestId }) => {
   ensureVolunteerRole(user);
 
@@ -311,7 +423,11 @@ export const finishServiceRequestForMe = async ({ user, requestId }) => {
   }
 
   if (result.type === 'not_owner') {
-    throw new ApiError(403, 'This request was not accepted by this volunteer', 'REQUEST_NOT_ACCEPTED_BY_VOLUNTEER');
+    throw new ApiError(
+      403,
+      'This request was not accepted by this volunteer',
+      'REQUEST_NOT_ACCEPTED_BY_VOLUNTEER'
+    );
   }
 
   if (result.type === 'invalid_status') {
