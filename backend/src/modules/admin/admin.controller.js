@@ -58,6 +58,28 @@ export const createAdmin = async (req, res) => {
   });
 };
 
+export const listDisabledProfiles = async (req, res) => {
+  const result = await adminService.listDisabledProfiles({
+    query: req.validated.query
+  });
+
+  res.json({
+    success: true,
+    data: result
+  });
+};
+
+export const listSupervisorProfiles = async (req, res) => {
+  const result = await adminService.listSupervisorProfiles({
+    query: req.validated.query
+  });
+
+  res.json({
+    success: true,
+    data: result
+  });
+};
+
 export const listVolunteers = async (req, res) => {
   const result = await adminService.listVolunteers({
     query: req.validated.query

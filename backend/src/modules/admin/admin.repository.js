@@ -398,3 +398,165 @@ export const updateVolunteerVerificationStatus = async ({ volId, status }) => {
 
   return result.rows[0] || null;
 };
+
+export const findDisabledProfiles = async ({ search, isActive, limit, offset }) => {
+  const params = [];
+  let whereClause = 'WHERE 1 = 1';
+
+  if (typeof isActive === 'boolean') {
+    params.push(isActive);
+    whereClause += ` AND u.is_active = $${params.length}`;
+  }
+
+  whereClause += buildSearchClause({
+    search,
+    params,
+    columns: [
+      'u.national_code',
+      'u.first_name',
+      'u.last_name',
+      'u.phone',
+      'u.city',
+      'u.province',
+      'd.home_address',
+      'd.accessibility_need',
+      'su.first_name',
+      'su.last_name',
+      'su.phone'
+    ]
+  });
+
+  const countResult = await query(
+    `
+    SELECT COUNT(*)::int AS total
+    FROM disabled d
+    JOIN users u ON u.user_id = d.user_id
+    LEFT JOIN supervisors s ON s.sup_id = d.sup_id
+    LEFT JOIN users su ON su.user_id = s.user_id
+    ${whereClause}
+    `,
+    params
+  );
+
+  const listParams = [...params, limit, offset];
+
+  const result = await query(
+    `
+    SELECT
+      d.dis_id,
+      d.user_id,
+      d.sup_id,
+      d.accessibility_need,
+      d.home_address,
+      d.created_at AS disabled_created_at,
+      u.national_code,
+      u.first_name,
+      u.last_name,
+      u.phone,
+      u.birth_date,
+      u.province,
+      u.city,
+      u.is_active,
+      u.created_at AS user_created_at,
+      su.user_id AS supervisor_user_id,
+      su.national_code AS supervisor_national_code,
+      su.first_name AS supervisor_first_name,
+      su.last_name AS supervisor_last_name,
+      su.phone AS supervisor_phone
+    FROM disabled d
+    JOIN users u ON u.user_id = d.user_id
+    LEFT JOIN supervisors s ON s.sup_id = d.sup_id
+    LEFT JOIN users su ON su.user_id = s.user_id
+    ${whereClause}
+    ORDER BY d.created_at DESC, d.dis_id DESC
+    LIMIT $${params.length + 1}
+    OFFSET $${params.length + 2}
+    `,
+    listParams
+  );
+
+  return {
+    disabled: result.rows,
+    total: countResult.rows[0].total
+  };
+};
+
+export const findSupervisorProfiles = async ({ search, isActive, limit, offset }) => {
+  const params = [];
+  let whereClause = 'WHERE 1 = 1';
+
+  if (typeof isActive === 'boolean') {
+    params.push(isActive);
+    whereClause += ` AND u.is_active = $${params.length}`;
+  }
+
+  whereClause += buildSearchClause({
+    search,
+    params,
+    columns: [
+      'u.national_code',
+      'u.first_name',
+      'u.last_name',
+      'u.phone',
+      'u.city',
+      'u.province'
+    ]
+  });
+
+  const countResult = await query(
+    `
+    SELECT COUNT(*)::int AS total
+    FROM supervisors s
+    JOIN users u ON u.user_id = s.user_id
+    ${whereClause}
+    `,
+    params
+  );
+
+  const listParams = [...params, limit, offset];
+
+  const result = await query(
+    `
+    SELECT
+      s.sup_id,
+      s.user_id,
+      s.created_at AS supervisor_created_at,
+      u.national_code,
+      u.first_name,
+      u.last_name,
+      u.phone,
+      u.birth_date,
+      u.province,
+      u.city,
+      u.is_active,
+      u.created_at AS user_created_at,
+      COUNT(d.dis_id)::int AS disabled_count
+    FROM supervisors s
+    JOIN users u ON u.user_id = s.user_id
+    LEFT JOIN disabled d ON d.sup_id = s.sup_id
+    ${whereClause}
+    GROUP BY
+      s.sup_id,
+      s.user_id,
+      s.created_at,
+      u.national_code,
+      u.first_name,
+      u.last_name,
+      u.phone,
+      u.birth_date,
+      u.province,
+      u.city,
+      u.is_active,
+      u.created_at
+    ORDER BY s.created_at DESC, s.sup_id DESC
+    LIMIT $${params.length + 1}
+    OFFSET $${params.length + 2}
+    `,
+    listParams
+  );
+
+  return {
+    supervisors: result.rows,
+    total: countResult.rows[0].total
+  };
+};

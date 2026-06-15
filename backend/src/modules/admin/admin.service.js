@@ -10,6 +10,8 @@ import {
   findUsers,
   findVolunteerDetailsById,
   findVolunteers,
+  findDisabledProfiles,
+  findSupervisorProfiles,
   revokeAllRefreshTokensForUser,
   setUserActiveStatus,
   updateVolunteerVerificationStatus
@@ -79,6 +81,58 @@ const formatAdminUser = (user) => {
     isActive: user.is_active,
     createdAt: user.created_at,
     updatedAt: user.updated_at || null
+  };
+};
+
+
+const formatDisabled = (disabled) => {
+  return {
+    disId: disabled.dis_id,
+    userId: disabled.user_id,
+    user: {
+      nationalCode: trimOrNull(disabled.national_code),
+      firstName: disabled.first_name,
+      lastName: disabled.last_name,
+      phone: trimOrNull(disabled.phone),
+      birthDate: disabled.birth_date || null,
+      province: disabled.province || null,
+      city: disabled.city || null,
+      isActive: disabled.is_active,
+      createdAt: disabled.user_created_at || null
+    },
+    accessibilityNeed: disabled.accessibility_need || null,
+    homeAddress: disabled.home_address,
+    supervisor: disabled.sup_id
+      ? {
+          supId: disabled.sup_id,
+          userId: disabled.supervisor_user_id,
+          nationalCode: trimOrNull(disabled.supervisor_national_code),
+          firstName: disabled.supervisor_first_name,
+          lastName: disabled.supervisor_last_name,
+          phone: trimOrNull(disabled.supervisor_phone)
+        }
+      : null,
+    createdAt: disabled.disabled_created_at || null
+  };
+};
+
+const formatSupervisor = (supervisor) => {
+  return {
+    supId: supervisor.sup_id,
+    userId: supervisor.user_id,
+    user: {
+      nationalCode: trimOrNull(supervisor.national_code),
+      firstName: supervisor.first_name,
+      lastName: supervisor.last_name,
+      phone: trimOrNull(supervisor.phone),
+      birthDate: supervisor.birth_date || null,
+      province: supervisor.province || null,
+      city: supervisor.city || null,
+      isActive: supervisor.is_active,
+      createdAt: supervisor.user_created_at || null
+    },
+    disabledCount: supervisor.disabled_count || 0,
+    createdAt: supervisor.supervisor_created_at || null
   };
 };
 
@@ -306,4 +360,51 @@ export const rejectVolunteer = async (volId) => {
     ...existingVolunteer,
     ...volunteer
   });
+};
+
+
+export const listDisabledProfiles = async ({ query }) => {
+  const page = query.page || 1;
+  const limit = query.limit || 20;
+  const offset = (page - 1) * limit;
+
+  const result = await findDisabledProfiles({
+    search: query.search,
+    isActive: query.isActive,
+    limit,
+    offset
+  });
+
+  return {
+    disabled: result.disabled.map(formatDisabled),
+    pagination: {
+      page,
+      limit,
+      total: result.total,
+      totalPages: Math.ceil(result.total / limit)
+    }
+  };
+};
+
+export const listSupervisorProfiles = async ({ query }) => {
+  const page = query.page || 1;
+  const limit = query.limit || 20;
+  const offset = (page - 1) * limit;
+
+  const result = await findSupervisorProfiles({
+    search: query.search,
+    isActive: query.isActive,
+    limit,
+    offset
+  });
+
+  return {
+    supervisors: result.supervisors.map(formatSupervisor),
+    pagination: {
+      page,
+      limit,
+      total: result.total,
+      totalPages: Math.ceil(result.total / limit)
+    }
+  };
 };

@@ -3,6 +3,7 @@ import express from 'express';
 import * as adminController from './admin.controller.js';
 import {
   createAdminSchema,
+  listProfilesSchema,
   listUsersSchema,
   listVolunteersSchema,
   userIdSchema,
@@ -47,6 +48,18 @@ router.post(
   '/admins',
   validate(createAdminSchema),
   asyncHandler(adminController.createAdmin)
+);
+
+router.get(
+  '/disabled',
+  validate(listProfilesSchema),
+  asyncHandler(adminController.listDisabledProfiles)
+);
+
+router.get(
+  '/supervisors',
+  validate(listProfilesSchema),
+  asyncHandler(adminController.listSupervisorProfiles)
 );
 
 router.get(

@@ -145,3 +145,33 @@ export const createAdminSchema = z.object({
   params: z.object({}),
   query: z.object({})
 });
+
+
+export const listProfilesSchema = z.object({
+  body: z.object({}),
+  params: z.object({}),
+  query: z.object({
+    isActive: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
+    search: z
+      .string()
+      .trim()
+      .min(1, 'Search must not be empty')
+      .max(100, 'Search must be at most 100 characters')
+      .optional(),
+    page: z
+      .string()
+      .regex(/^\d+$/, 'Page must be a number')
+      .transform(Number)
+      .refine((value) => value >= 1, 'Page must be at least 1')
+      .optional(),
+    limit: z
+      .string()
+      .regex(/^\d+$/, 'Limit must be a number')
+      .transform(Number)
+      .refine((value) => value >= 1 && value <= 100, 'Limit must be between 1 and 100')
+      .optional()
+  })
+});
