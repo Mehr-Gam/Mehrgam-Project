@@ -1,7 +1,7 @@
 const roles = [
-  { key: 'caregiver', label: 'داوطلب' },
+  { key: 'volunteer', label: 'داوطلب' },
   { key: 'disabled', label: 'توان‌خواه' },
-  { key: 'caretaker', label: 'سرپرست' },
+  { key: 'supervisor', label: 'سرپرست' },
 ]
 
 function RoleSwitch({ value, onChange }) {
