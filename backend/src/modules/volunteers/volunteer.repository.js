@@ -112,11 +112,54 @@ export const findAvailabilityByVolunteer = async (volId) => {
   return result.rows;
 };
 
+export const activateAvailability = async ({ volId, availId }) => {
+  const result = await query(
+    `
+    UPDATE volunteer_availability
+    SET is_active = TRUE
+    WHERE avail_id = $1
+      AND vol_id = $2
+    RETURNING
+      avail_id,
+      vol_id,
+      weekday,
+      start_time,
+      end_time,
+      is_active,
+      created_at
+    `,
+    [availId, volId]
+  );
+
+  return result.rows[0] || null;
+};
+
 export const deactivateAvailability = async ({ volId, availId }) => {
   const result = await query(
     `
     UPDATE volunteer_availability
     SET is_active = FALSE
+    WHERE avail_id = $1
+      AND vol_id = $2
+    RETURNING
+      avail_id,
+      vol_id,
+      weekday,
+      start_time,
+      end_time,
+      is_active,
+      created_at
+    `,
+    [availId, volId]
+  );
+
+  return result.rows[0] || null;
+};
+
+export const deleteAvailability = async ({ volId, availId }) => {
+  const result = await query(
+    `
+    DELETE FROM volunteer_availability
     WHERE avail_id = $1
       AND vol_id = $2
     RETURNING

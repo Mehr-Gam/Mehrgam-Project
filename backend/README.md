@@ -41,7 +41,9 @@ PATCH /api/v1/volunteers/me/online
 PATCH /api/v1/volunteers/me/offline
 POST  /api/v1/volunteers/me/availability
 GET   /api/v1/volunteers/me/availability
+PATCH /api/v1/volunteers/me/availability/:availId/activate
 PATCH /api/v1/volunteers/me/availability/:availId/deactivate
+DELETE /api/v1/volunteers/me/availability/:availId
 ```
 
 ## Service request endpoints

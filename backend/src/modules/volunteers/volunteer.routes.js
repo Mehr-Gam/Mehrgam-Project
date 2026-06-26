@@ -50,9 +50,21 @@ router.get(
 );
 
 router.patch(
+  '/me/availability/:availId/activate',
+  validate(availabilityIdSchema),
+  asyncHandler(volunteerController.activateAvailability)
+);
+
+router.patch(
   '/me/availability/:availId/deactivate',
   validate(availabilityIdSchema),
   asyncHandler(volunteerController.deactivateAvailability)
+);
+
+router.delete(
+  '/me/availability/:availId',
+  validate(availabilityIdSchema),
+  asyncHandler(volunteerController.deleteAvailability)
 );
 
 export default router;

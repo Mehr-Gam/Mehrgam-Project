@@ -1,8 +1,10 @@
 import { ApiError } from '../../utils/ApiError.js';
 
 import {
+  activateAvailability,
   createAvailability,
   deactivateAvailability,
+  deleteAvailability,
   findAvailabilityByVolunteer,
   findVolunteerById,
   setVolunteerOnlineStatus,
@@ -135,6 +137,36 @@ export const deactivateMyAvailability = async ({ user, availId }) => {
   ensureVolunteer(user);
 
   const availability = await deactivateAvailability({
+    volId: user.volId,
+    availId
+  });
+
+  if (!availability) {
+    throw new ApiError(404, 'Availability not found', 'AVAILABILITY_NOT_FOUND');
+  }
+
+  return formatAvailability(availability);
+};
+
+export const activateMyAvailability = async ({ user, availId }) => {
+  ensureVolunteer(user);
+
+  const availability = await activateAvailability({
+    volId: user.volId,
+    availId
+  });
+
+  if (!availability) {
+    throw new ApiError(404, 'Availability not found', 'AVAILABILITY_NOT_FOUND');
+  }
+
+  return formatAvailability(availability);
+};
+
+export const deleteMyAvailability = async ({ user, availId }) => {
+  ensureVolunteer(user);
+
+  const availability = await deleteAvailability({
     volId: user.volId,
     availId
   });
