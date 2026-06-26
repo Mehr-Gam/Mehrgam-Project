@@ -100,3 +100,35 @@ export const deactivateAvailability = async (req, res) => {
     }
   });
 };
+
+export const activateAvailability = async (req, res) => {
+  const { availId } = req.validated.params;
+
+  const availability = await volunteerService.activateMyAvailability({
+    user: req.user,
+    availId
+  });
+
+  res.json({
+    success: true,
+    data: {
+      availability
+    }
+  });
+};
+
+export const deleteAvailability = async (req, res) => {
+  const { availId } = req.validated.params;
+
+  const availability = await volunteerService.deleteMyAvailability({
+    user: req.user,
+    availId
+  });
+
+  res.json({
+    success: true,
+    data: {
+      availability
+    }
+  });
+};
