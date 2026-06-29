@@ -15,10 +15,21 @@ import {
 } from './serviceRequest.repository.js';
 
 const LOCATION_MAX_AGE_MINUTES = 15;
+const DEFAULT_MAX_MATCH_DISTANCE_METERS = 10000;
 const ROUTE_PROVIDER = 'simple_haversine';
 
 const toNumberOrNull = (value) => {
   return value === null || value === undefined ? null : Number(value);
+};
+
+const getMaxMatchDistanceMeters = () => {
+  const value = Number(process.env.MAX_VOLUNTEER_MATCH_DISTANCE_METERS);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return DEFAULT_MAX_MATCH_DISTANCE_METERS;
+  }
+
+  return Math.round(value);
 };
 
 const formatRequest = (request) => {
@@ -220,6 +231,8 @@ export const getAvailableRequestsForMe = async (user) => {
   const volunteerLat = Number(volunteer.current_lat);
   const volunteerLng = Number(volunteer.current_lng);
 
+  const maxDistanceMeters = getMaxMatchDistanceMeters();
+
   const requestsWithEstimate = requests.map((request) => {
     const distanceMeters = calculateDistanceMeters({
       fromLat: volunteerLat,
@@ -237,9 +250,9 @@ export const getAvailableRequestsForMe = async (user) => {
     });
   });
 
-  return requestsWithEstimate.sort(
-    (first, second) => first.approxDistanceMeters - second.approxDistanceMeters
-  );
+  return requestsWithEstimate
+    .filter((request) => request.approxDistanceMeters <= maxDistanceMeters)
+    .sort((first, second) => first.approxDistanceMeters - second.approxDistanceMeters);
 };
 
 export const acceptServiceRequestForMe = async ({ user, requestId }) => {
@@ -263,6 +276,20 @@ export const acceptServiceRequestForMe = async ({ user, requestId }) => {
     toLat: Number(request.origin_lat),
     toLng: Number(request.origin_lng)
   });
+
+  const maxDistanceMeters = getMaxMatchDistanceMeters();
+
+  if (distanceMeters > maxDistanceMeters) {
+    throw new ApiError(
+      403,
+      'Request origin is outside the volunteer matching radius',
+      'REQUEST_OUTSIDE_MATCH_RADIUS',
+      {
+        distanceMeters,
+        maxDistanceMeters
+      }
+    );
+  }
 
   const durationSeconds = estimateDurationSeconds({ distanceMeters });
 
