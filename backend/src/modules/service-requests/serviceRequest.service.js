@@ -1,5 +1,5 @@
 import { ApiError } from '../../utils/ApiError.js';
-import { calculateDistanceMeters, estimateDurationSeconds } from '../../utils/distance.js';
+import { getDistanceEstimate, getDistanceMatrixEstimates } from '../maps/map.service.js';
 
 import {
   acceptRequest,
@@ -16,7 +16,7 @@ import {
 
 const LOCATION_MAX_AGE_MINUTES = 15;
 const DEFAULT_MAX_MATCH_DISTANCE_METERS = 10000;
-const ROUTE_PROVIDER = 'simple_haversine';
+const ROUTE_PROVIDER = 'neshan_distance_matrix';
 
 const toNumberOrNull = (value) => {
   return value === null || value === undefined ? null : Number(value);
@@ -30,6 +30,14 @@ const getMaxMatchDistanceMeters = () => {
   }
 
   return Math.round(value);
+};
+
+const getNeshanRouteType = () => {
+  return process.env.NESHAN_ROUTE_TYPE === 'motorcycle' ? 'motorcycle' : 'car';
+};
+
+const hasValidCoordinates = ({ origin_lat, origin_lng }) => {
+  return Number.isFinite(Number(origin_lat)) && Number.isFinite(Number(origin_lng));
 };
 
 const formatRequest = (request) => {
@@ -59,13 +67,22 @@ const formatRequest = (request) => {
   };
 };
 
-const formatRequestWithEstimate = ({ request, distanceMeters, durationSeconds }) => {
+const formatRequestWithEstimate = ({
+  request,
+  distanceMeters,
+  durationSeconds,
+  distanceText = null,
+  durationText = null,
+  routeProvider = ROUTE_PROVIDER
+}) => {
   return {
     ...formatRequest(request),
     approxDistanceMeters: distanceMeters,
+    approxDistanceText: distanceText,
     approxDurationSeconds: durationSeconds,
+    approxDurationText: durationText,
     approxDurationMinutes: Math.ceil(durationSeconds / 60),
-    routeProvider: ROUTE_PROVIDER
+    routeProvider
   };
 };
 
@@ -226,29 +243,41 @@ export const getAvailableRequestsForMe = async (user) => {
   const volunteer = await findVolunteerForMatching(user.volId);
   ensureVolunteerCanMatch(volunteer);
 
-  const requests = await findAvailableRequestsForVolunteer(user.volId);
+  const requests = (await findAvailableRequestsForVolunteer(user.volId)).filter(hasValidCoordinates);
 
   const volunteerLat = Number(volunteer.current_lat);
   const volunteerLng = Number(volunteer.current_lng);
+  const origin = { lat: volunteerLat, lng: volunteerLng };
 
   const maxDistanceMeters = getMaxMatchDistanceMeters();
 
-  const requestsWithEstimate = requests.map((request) => {
-    const distanceMeters = calculateDistanceMeters({
-      fromLat: volunteerLat,
-      fromLng: volunteerLng,
-      toLat: Number(request.origin_lat),
-      toLng: Number(request.origin_lng)
-    });
-
-    const durationSeconds = estimateDurationSeconds({ distanceMeters });
-
-    return formatRequestWithEstimate({
-      request,
-      distanceMeters,
-      durationSeconds
-    });
+  const estimates = await getDistanceMatrixEstimates({
+    origin,
+    destinations: requests.map((request) => ({
+      lat: Number(request.origin_lat),
+      lng: Number(request.origin_lng)
+    })),
+    type: getNeshanRouteType()
   });
+
+  const requestsWithEstimate = requests
+    .map((request, index) => {
+      const estimate = estimates[index];
+
+      if (!estimate) {
+        return null;
+      }
+
+      return formatRequestWithEstimate({
+        request,
+        distanceMeters: estimate.distance.value,
+        durationSeconds: estimate.duration.value,
+        distanceText: estimate.distance.text,
+        durationText: estimate.duration.text,
+        routeProvider: estimate.provider
+      });
+    })
+    .filter(Boolean);
 
   return requestsWithEstimate
     .filter((request) => request.approxDistanceMeters <= maxDistanceMeters)
@@ -270,13 +299,20 @@ export const acceptServiceRequestForMe = async ({ user, requestId }) => {
     throw new ApiError(404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
   }
 
-  const distanceMeters = calculateDistanceMeters({
-    fromLat: volunteerLat,
-    fromLng: volunteerLng,
-    toLat: Number(request.origin_lat),
-    toLng: Number(request.origin_lng)
+  const estimate = await getDistanceEstimate({
+    origin: {
+      lat: volunteerLat,
+      lng: volunteerLng
+    },
+    destination: {
+      lat: Number(request.origin_lat),
+      lng: Number(request.origin_lng)
+    },
+    type: getNeshanRouteType()
   });
 
+  const distanceMeters = estimate.distance.value;
+  const durationSeconds = estimate.duration.value;
   const maxDistanceMeters = getMaxMatchDistanceMeters();
 
   if (distanceMeters > maxDistanceMeters) {
@@ -286,12 +322,11 @@ export const acceptServiceRequestForMe = async ({ user, requestId }) => {
       'REQUEST_OUTSIDE_MATCH_RADIUS',
       {
         distanceMeters,
-        maxDistanceMeters
+        maxDistanceMeters,
+        routeProvider: estimate.provider
       }
     );
   }
-
-  const durationSeconds = estimateDurationSeconds({ distanceMeters });
 
   const requestCheck = await acceptRequest({
     requestId,
@@ -300,7 +335,7 @@ export const acceptServiceRequestForMe = async ({ user, requestId }) => {
     volunteerLngAtAccept: volunteerLng,
     estimatedDistanceMeters: distanceMeters,
     estimatedDurationSeconds: durationSeconds,
-    routeProvider: ROUTE_PROVIDER
+    routeProvider: estimate.provider
   });
 
   if (requestCheck.type === 'not_found') {

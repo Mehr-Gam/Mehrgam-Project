@@ -133,23 +133,23 @@ function DashboardPage() {
           ))}
         </div>
 
-        <Panel title="اطلاعات حساب" description="این اطلاعات از پاسخ endpoint /auth/me و session ذخیره‌شده در مرورگر خوانده می‌شود.">
+        <Panel title="اطلاعات حساب">
           <dl className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-[18px] bg-[#fbfdff] p-4">
               <dt className="text-[12px] font-bold text-[#7b8796]">نام</dt>
-              <dd className="mt-2 text-[15px] font-extrabold text-[#172033]">{user?.firstName || '—'} {user?.lastName || ''}</dd>
+              <dd className="mt-2 text-[15px] font-bold text-[#172033]">{user?.firstName || '—'} {user?.lastName || ''}</dd>
             </div>
             <div className="rounded-[18px] bg-[#fbfdff] p-4">
               <dt className="text-[12px] font-bold text-[#7b8796]">کد ملی</dt>
-              <dd className="mt-2 text-[15px] font-extrabold text-[#172033]" dir="ltr">{user?.nationalCode || '—'}</dd>
+              <dd className="mt-2 text-[15px] font-bold text-[#172033]" dir="ltr">{user?.nationalCode || '—'}</dd>
             </div>
             <div className="rounded-[18px] bg-[#fbfdff] p-4">
               <dt className="text-[12px] font-bold text-[#7b8796]">شماره موبایل</dt>
-              <dd className="mt-2 text-[15px] font-extrabold text-[#172033]" dir="ltr">{user?.phone || '—'}</dd>
+              <dd className="mt-2 text-[15px] font-bold text-[#172033]" dir="ltr">{user?.phone || '—'}</dd>
             </div>
             <div className="rounded-[18px] bg-[#fbfdff] p-4">
               <dt className="text-[12px] font-bold text-[#7b8796]">وضعیت داوطلب</dt>
-              <dd className="mt-2 text-[15px] font-extrabold text-[#172033]">{user?.verificationStatus || '—'}</dd>
+              <dd className="mt-2 text-[15px] font-bold text-[#172033]">{user?.verificationStatus || '—'}</dd>
             </div>
           </dl>
         </Panel>

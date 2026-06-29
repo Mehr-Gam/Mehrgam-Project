@@ -1,7 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
-  font-family: Vazirmatn, IRANSans, "Segoe UI", Tahoma, Arial, ui-sans-serif, system-ui, sans-serif;
+  font-family: "Noto Sans Arabic", IRANSans, "Segoe UI", Tahoma, Arial, ui-sans-serif, system-ui, sans-serif;
   color: #172033;
   background: #ffffff;
   font-synthesis: none;
@@ -14,10 +15,21 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  overflow-x: hidden;
+  font-family: "Noto Sans Arabic", IRANSans, "Segoe UI", Tahoma, Arial, ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: #9fd7cf;
+  color: #172033;
 }
 
 a {
@@ -29,4 +41,185 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+iframe {
+  display: block;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes subtle-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes gradient-slide {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.float-soft {
+  animation: subtle-float 6s ease-in-out infinite;
+}
+
+.orb {
+  border-radius: 999px;
+  filter: blur(42px);
+  animation: pulse-glow 8s ease-in-out infinite;
+}
+
+.soft-grid {
+  background-image:
+    linear-gradient(rgba(141, 201, 192, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(141, 201, 192, 0.12) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+}
+
+.section-tag {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(141, 201, 192, 0.34);
+  border-radius: 999px;
+  background: rgba(238, 249, 247, 0.86);
+  padding: 0.55rem 0.9rem;
+  color: #159272;
+  font-size: 0.78rem;
+  font-weight: 900;
+  box-shadow: 0 12px 28px rgba(85, 183, 173, 0.1);
+}
+
+.section-tag::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #55b7ad;
+  box-shadow: 0 0 0 5px rgba(85, 183, 173, 0.12);
+}
+
+.premium-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(234, 241, 247, 0.96);
+  border-radius: 1.75rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(251, 253, 255, 0.92)),
+    radial-gradient(circle at 20% 0%, rgba(141, 201, 192, 0.16), transparent 34%);
+  box-shadow: 0 18px 42px rgba(16, 24, 39, 0.065);
+  transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+}
+
+.premium-card::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at top left, rgba(77, 182, 244, 0.16), transparent 35%);
+  transition: opacity 0.28s ease;
+}
+
+.premium-card:hover {
+  transform: translateY(-7px);
+  border-color: rgba(159, 215, 207, 0.8);
+  box-shadow: 0 28px 66px rgba(16, 24, 39, 0.12);
+}
+
+.premium-card:hover::after {
+  opacity: 1;
+}
+
+.glass-card {
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 62px rgba(16, 24, 39, 0.075);
+  backdrop-filter: blur(18px);
+}
+
+.lift-card {
+  will-change: transform, box-shadow;
+}
+
+.shine-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine-button::after {
+  position: absolute;
+  top: 0;
+  right: -90%;
+  width: 52%;
+  height: 100%;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  transform: skewX(-18deg);
+  transition: right 0.65s ease;
+}
+
+.shine-button:hover::after {
+  right: 120%;
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, #172033, #55b7ad, #4db6f4);
+  background-size: 180% 180%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-slide 6s ease infinite;
 }

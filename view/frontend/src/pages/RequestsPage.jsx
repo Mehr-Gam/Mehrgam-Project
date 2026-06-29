@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import PageLayout from '../components/PageLayout.jsx'
+import LocationPicker from '../components/LocationPicker.jsx'
 import Panel from '../components/Panel.jsx'
 import { PrimaryButton, SelectInput, StatusMessage, TextArea, TextInput } from '../components/FormControls.jsx'
 import { serviceRequestApi } from '../services/api.js'
@@ -11,8 +12,8 @@ const initialRequestForm = {
   requestType: 'medical',
   requestedTime: '',
   originAddress: '',
-  originLat: '35.6892',
-  originLng: '51.3890',
+  originLat: '',
+  originLng: '',
   destinationAddress: '',
   destinationLat: '',
   destinationLng: '',
@@ -37,7 +38,7 @@ function RequestCard({ request, onCancel, onAccept, onFinish, isVolunteer, isBus
               {statusLabels[request.status] || request.status}
             </span>
           </div>
-          <h3 className="mt-4 text-[18px] font-extrabold text-[#172033]">{request.originAddress || 'مبدأ ثبت‌شده روی نقشه'}</h3>
+          <h3 className="mt-4 text-[18px] font-bold text-[#172033]">{request.originAddress || 'مبدأ ثبت‌شده روی نقشه'}</h3>
           <p className="mt-2 text-[13px] leading-7 text-[#7b8796]">
             زمان: {formatDate(request.requestedTime)} {request.destinationAddress ? ` • مقصد: ${request.destinationAddress}` : ''}
           </p>
@@ -49,7 +50,7 @@ function RequestCard({ request, onCancel, onAccept, onFinish, isVolunteer, isBus
           {request.description && <p className="mt-3 text-[13px] leading-7 text-[#536174]">{request.description}</p>}
           {isVolunteer && (
             <p className="mt-3 text-[13px] font-bold text-[#55b7ad]">
-              فاصله تقریبی: {formatMeters(request.approxDistanceMeters)} • زمان تقریبی: {request.approxDurationMinutes || '—'} دقیقه
+              فاصله مسیر: {request.approxDistanceText || formatMeters(request.approxDistanceMeters)} • زمان مسیر: {request.approxDurationText || `${request.approxDurationMinutes || '—'} دقیقه`}
             </p>
           )}
         </div>
@@ -137,12 +138,21 @@ function RequestsPage() {
     setForm((current) => ({ ...current, [name]: value }))
   }
 
+  const handleLocationChange = (updates) => {
+    setForm((current) => ({ ...current, ...updates }))
+  }
+
   const handleCreate = async (event) => {
     event.preventDefault()
     setIsBusy(true)
     setMessage('')
 
     try {
+      if (!form.originLat || !form.originLng) {
+        setError('لطفاً موقعیت مبدأ را از بخش نقشه انتخاب کنید.')
+        return
+      }
+
       const payload = {
         requestType: form.requestType,
         requestedTime: new Date(form.requestedTime).toISOString(),
@@ -219,13 +229,13 @@ function RequestsPage() {
     <PageLayout
       eyebrow="درخواست‌های همراهی"
       title={isVolunteer ? 'درخواست‌های قابل پذیرش' : 'ثبت و پیگیری درخواست همراهی'}
-      description="این صفحه بر اساس endpointهای service-requests ساخته شده و برای نیازهای پزشکی، خرید، تفریحی و اداری قابل استفاده است."
+      description="درخواست‌های همراهی پزشکی، خرید، تفریحی و اداری را ثبت و پیگیری کنید."
     >
       <div className="space-y-7">
         <StatusMessage message={message} type={messageType} />
 
         {isRequester && (
-          <Panel title="ثبت درخواست جدید" description="برای سرپرست، وارد کردن شناسه توان‌خواه الزامی است؛ برای توان‌خواه، شناسه از توکن کاربر خوانده می‌شود.">
+          <Panel title="ثبت درخواست جدید" description="نوع خدمت، زمان و موقعیت موردنظر را وارد کنید تا درخواست شما ثبت شود.">
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleCreate}>
               {user.role === 'supervisor' && (
                 <TextInput label="شناسه توان‌خواه" name="disId" value={form.disId} onChange={handleChange} dir="ltr" required />
@@ -240,12 +250,29 @@ function RequestsPage() {
                 dir="ltr"
                 required
               />
-              <TextInput label="آدرس مبدأ" name="originAddress" value={form.originAddress} onChange={handleChange} required={false} />
-              <TextInput label="عرض جغرافیایی مبدأ" name="originLat" value={form.originLat} onChange={handleChange} dir="ltr" required />
-              <TextInput label="طول جغرافیایی مبدأ" name="originLng" value={form.originLng} onChange={handleChange} dir="ltr" required />
-              <TextInput label="آدرس مقصد" name="destinationAddress" value={form.destinationAddress} onChange={handleChange} required={false} />
-              <TextInput label="عرض جغرافیایی مقصد" name="destinationLat" value={form.destinationLat} onChange={handleChange} dir="ltr" required={false} />
-              <TextInput label="طول جغرافیایی مقصد" name="destinationLng" value={form.destinationLng} onChange={handleChange} dir="ltr" required={false} />
+              <LocationPicker
+                title="انتخاب موقعیت مبدأ"
+                description="به‌جای وارد کردن مختصات، آدرس یا محله را جستجو کنید و موقعیت درست را از نتایج انتخاب کنید."
+                lat={form.originLat}
+                lng={form.originLng}
+                address={form.originAddress}
+                latName="originLat"
+                lngName="originLng"
+                addressName="originAddress"
+                onChange={handleLocationChange}
+                required
+              />
+              <LocationPicker
+                title="انتخاب موقعیت مقصد"
+                description="اگر درخواست مقصد مشخص دارد، آن را از نقشه انتخاب کنید؛ این بخش اختیاری است."
+                lat={form.destinationLat}
+                lng={form.destinationLng}
+                address={form.destinationAddress}
+                latName="destinationLat"
+                lngName="destinationLng"
+                addressName="destinationAddress"
+                onChange={handleLocationChange}
+              />
               <TextArea label="توضیحات" name="description" value={form.description} onChange={handleChange} placeholder="مثلاً نیاز به ویلچر یا زمان تقریبی انجام کار" />
               <div className="md:col-span-2">
                 <PrimaryButton type="submit" disabled={isBusy}>ثبت درخواست</PrimaryButton>

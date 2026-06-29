@@ -44,3 +44,15 @@ VITE_API_BASE_URL=http://localhost:5000/api/v1
 npm install
 npm run dev
 ```
+
+## اتصال به بک‌اند و نقشه نشان
+
+یک فایل `.env` در مسیر `view/frontend` بسازید:
+
+```env
+VITE_API_BASE_URL=http://localhost:5000/api/v1
+VITE_NESHAN_WEB_API_KEY=web.your_neshan_web_api_key
+VITE_NESHAN_MAP_TYPE=dreamy
+```
+
+`VITE_NESHAN_WEB_API_KEY` فقط برای نمایش نقشه وب نشان در مرورگر است. برای جستجو، تبدیل مختصات به آدرس و فاصله، فرانت‌اند به بک‌اند درخواست می‌زند و بک‌اند از `NESHAN_SERVICE_API_KEY` استفاده می‌کند.

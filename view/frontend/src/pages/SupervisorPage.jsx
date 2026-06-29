@@ -15,7 +15,7 @@ function DisabledCard({ item, onRemove, isBusy }) {
             <span className="rounded-full bg-[#eef9f7] px-3 py-1 text-[12px] font-bold text-[#55b7ad]">شناسه: {item.disId}</span>
             <span className="rounded-full bg-white px-3 py-1 text-[12px] font-bold text-[#7b8796]">{item.user?.isActive ? 'فعال' : 'غیرفعال'}</span>
           </div>
-          <h3 className="mt-4 text-[18px] font-extrabold text-[#172033]">{formatName(item.user)}</h3>
+          <h3 className="mt-4 text-[18px] font-bold text-[#172033]">{formatName(item.user)}</h3>
           <p className="mt-2 text-[13px] leading-7 text-[#7b8796]">
             شماره تماس: <span dir="ltr">{item.user?.phone || '—'}</span> • شهر: {item.user?.city || '—'}
           </p>

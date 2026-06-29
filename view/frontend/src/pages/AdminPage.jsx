@@ -28,7 +28,7 @@ function UserRow({ user, onActivate, onDeactivate, isBusy }) {
   return (
     <tr className="border-b border-[#edf3f8] last:border-0">
       <td className="px-4 py-4 text-right">
-        <p className="font-extrabold text-[#172033]">{formatName(user)}</p>
+        <p className="font-bold text-[#172033]">{formatName(user)}</p>
         <p className="mt-1 text-[12px] text-[#7b8796]" dir="ltr">{user.phone || '—'}</p>
       </td>
       <td className="px-4 py-4 text-right">{roleLabels[user.role] || user.role}</td>
@@ -70,7 +70,7 @@ function VolunteerCard({ volunteer, onApprove, onReject, isBusy }) {
               {statusLabels[volunteer.verificationStatus] || volunteer.verificationStatus}
             </span>
           </div>
-          <h3 className="mt-4 text-[18px] font-extrabold text-[#172033]">{formatName(volunteer.user)}</h3>
+          <h3 className="mt-4 text-[18px] font-bold text-[#172033]">{formatName(volunteer.user)}</h3>
           <p className="mt-2 text-[13px] leading-7 text-[#7b8796]">
             موبایل: <span dir="ltr">{volunteer.user?.phone || '—'}</span> • شهر: {volunteer.user?.city || '—'}
           </p>
@@ -316,7 +316,7 @@ function AdminPage() {
           </div>
         </Panel>
 
-        <Panel title="ساخت مدیر جدید" description="این فرم به endpoint /admin/admins متصل است و فقط مدیر فعلی اجازه استفاده از آن را دارد.">
+        <Panel title="ساخت مدیر جدید" description="برای افزودن مدیر جدید، اطلاعات حساب را تکمیل کنید.">
           <form className="grid gap-4 md:grid-cols-2" onSubmit={createAdmin}>
             <TextInput label="نام" name="firstName" value={adminForm.firstName} onChange={handleAdminFormChange} required />
             <TextInput label="نام خانوادگی" name="lastName" value={adminForm.lastName} onChange={handleAdminFormChange} required />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import LocationPicker from '../components/LocationPicker.jsx'
 import PageLayout from '../components/PageLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import { PrimaryButton, SelectInput, StatusMessage, TextInput } from '../components/FormControls.jsx'
@@ -6,8 +7,8 @@ import { volunteerApi } from '../services/api.js'
 import { formatDate, statusLabels, weekDayLabels } from '../utils/labels.js'
 
 const initialLocationForm = {
-  currentLat: '35.6892',
-  currentLng: '51.3890',
+  currentLat: '',
+  currentLng: '',
 }
 
 const initialAvailabilityForm = {
@@ -78,9 +79,8 @@ function VolunteerPage() {
     }
   }, [])
 
-  const handleLocationChange = (event) => {
-    const { name, value } = event.target
-    setLocationForm((current) => ({ ...current, [name]: value }))
+  const handleLocationChange = (updates) => {
+    setLocationForm((current) => ({ ...current, ...updates }))
   }
 
   const handleAvailabilityChange = (event) => {
@@ -94,6 +94,11 @@ function VolunteerPage() {
     setMessage('')
 
     try {
+      if (!locationForm.currentLat || !locationForm.currentLng) {
+        setError('لطفاً موقعیت فعلی خود را از بخش نقشه انتخاب کنید.')
+        return
+      }
+
       await volunteerApi.updateLocation({
         currentLat: Number(locationForm.currentLat),
         currentLng: Number(locationForm.currentLng),
@@ -172,23 +177,23 @@ function VolunteerPage() {
       <div className="space-y-7">
         <StatusMessage message={message} type={messageType} />
 
-        <Panel title="پروفایل داوطلب" description="اطلاعات این کارت از endpoint /volunteers/me دریافت می‌شود." action={<PrimaryButton disabled={isBusy} onClick={loadProfile}>به‌روزرسانی</PrimaryButton>}>
+        <Panel title="پروفایل داوطلب" description="وضعیت احراز صلاحیت، آنلاین بودن و آخرین موقعیت خود را مشاهده کنید." action={<PrimaryButton disabled={isBusy} onClick={loadProfile}>به‌روزرسانی</PrimaryButton>}>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-[18px] bg-[#fbfdff] p-4">
               <p className="text-[12px] font-bold text-[#7b8796]">وضعیت احراز صلاحیت</p>
-              <p className="mt-2 text-[15px] font-extrabold text-[#172033]">{statusLabels[profile?.verificationStatus] || profile?.verificationStatus || '—'}</p>
+              <p className="mt-2 text-[15px] font-bold text-[#172033]">{statusLabels[profile?.verificationStatus] || profile?.verificationStatus || '—'}</p>
             </div>
             <div className="rounded-[18px] bg-[#fbfdff] p-4">
               <p className="text-[12px] font-bold text-[#7b8796]">وضعیت آنلاین</p>
-              <p className="mt-2 text-[15px] font-extrabold text-[#172033]">{profile?.isOnline ? 'آنلاین' : 'آفلاین'}</p>
+              <p className="mt-2 text-[15px] font-bold text-[#172033]">{profile?.isOnline ? 'آنلاین' : 'آفلاین'}</p>
             </div>
             <div className="rounded-[18px] bg-[#fbfdff] p-4">
               <p className="text-[12px] font-bold text-[#7b8796]">آخرین موقعیت</p>
-              <p className="mt-2 text-[15px] font-extrabold text-[#172033]" dir="ltr">{profile?.currentLat || '—'}, {profile?.currentLng || '—'}</p>
+              <p className="mt-2 text-[15px] font-bold text-[#172033]" dir="ltr">{profile?.currentLat || '—'}, {profile?.currentLng || '—'}</p>
             </div>
             <div className="rounded-[18px] bg-[#fbfdff] p-4">
               <p className="text-[12px] font-bold text-[#7b8796]">زمان ثبت موقعیت</p>
-              <p className="mt-2 text-[15px] font-extrabold text-[#172033]">{formatDate(profile?.locationUpdatedAt)}</p>
+              <p className="mt-2 text-[15px] font-bold text-[#172033]">{formatDate(profile?.locationUpdatedAt)}</p>
             </div>
           </div>
 
@@ -198,10 +203,18 @@ function VolunteerPage() {
           </div>
         </Panel>
 
-        <Panel title="ثبت موقعیت فعلی" description="برای MVP فعلاً مختصات را دستی وارد می‌کنیم؛ بعداً می‌توان آن را به نقشه یا GPS مرورگر وصل کرد.">
+        <Panel title="ثبت موقعیت فعلی" description="موقعیت را با جستجوی نقشه یا دریافت موقعیت فعلی مرورگر انتخاب کنید.">
           <form className="grid gap-4 md:grid-cols-2" onSubmit={updateLocation}>
-            <TextInput label="عرض جغرافیایی" name="currentLat" value={locationForm.currentLat} onChange={handleLocationChange} dir="ltr" required />
-            <TextInput label="طول جغرافیایی" name="currentLng" value={locationForm.currentLng} onChange={handleLocationChange} dir="ltr" required />
+            <LocationPicker
+              title="موقعیت فعلی داوطلب"
+              description="برای دریافت درخواست‌های نزدیک، موقعیت فعلی خود را دقیق انتخاب کنید."
+              lat={locationForm.currentLat}
+              lng={locationForm.currentLng}
+              latName="currentLat"
+              lngName="currentLng"
+              onChange={handleLocationChange}
+              required
+            />
             <div className="md:col-span-2">
               <PrimaryButton type="submit" disabled={isBusy}>ثبت موقعیت</PrimaryButton>
             </div>

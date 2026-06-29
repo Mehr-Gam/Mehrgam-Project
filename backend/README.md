@@ -174,3 +174,21 @@ REFRESH_TOKEN_DAYS=7
 NESHAN_SERVICE_API_KEY=service.your_neshan_service_api_key
 MAX_VOLUNTEER_MATCH_DISTANCE_METERS=10000
 ```
+
+## Neshan map/search endpoints
+
+The frontend location picker uses these backend proxy endpoints so the Neshan service API key stays on the server:
+
+```txt
+GET /api/v1/maps/search?term=تهران&lat=35.6892&lng=51.389
+GET /api/v1/maps/reverse?lat=35.6892&lng=51.389
+POST /api/v1/maps/distance-estimate
+```
+
+Required backend key:
+
+```env
+NESHAN_SERVICE_API_KEY=service.your_neshan_service_api_key
+```
+
+Use a Neshan service API key for Search, Reverse Geocoding and Distance Matrix. Do not put this key in the React code.

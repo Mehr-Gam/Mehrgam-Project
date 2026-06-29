@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import LocationPicker from '../components/LocationPicker.jsx'
 import PageLayout from '../components/PageLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import { PrimaryButton, StatusMessage, TextInput } from '../components/FormControls.jsx'
@@ -8,8 +9,8 @@ import { formatDate, statusLabels } from '../utils/labels.js'
 
 const initialAlertForm = {
   disId: '',
-  alertLat: '35.6892',
-  alertLng: '51.3890',
+  alertLat: '',
+  alertLng: '',
   address: '',
 }
 
@@ -24,7 +25,7 @@ function AlertCard({ alert, onResolve, onCancel, isBusy }) {
               {statusLabels[alert.alertStatus] || alert.alertStatus}
             </span>
           </div>
-          <h3 className="mt-4 text-[18px] font-extrabold text-[#172033]">{alert.address || 'موقعیت اضطراری ثبت‌شده'}</h3>
+          <h3 className="mt-4 text-[18px] font-bold text-[#172033]">{alert.address || 'موقعیت اضطراری ثبت‌شده'}</h3>
           <p className="mt-2 text-[13px] leading-7 text-[#7b8796]">
             زمان ارسال: {formatDate(alert.triggeredAt)} • مختصات: <span dir="ltr">{alert.alertLat}, {alert.alertLng}</span>
           </p>
@@ -105,12 +106,21 @@ function EmergencyPage() {
     setForm((current) => ({ ...current, [name]: value }))
   }
 
+  const handleLocationChange = (updates) => {
+    setForm((current) => ({ ...current, ...updates }))
+  }
+
   const handleCreate = async (event) => {
     event.preventDefault()
     setIsBusy(true)
     setMessage('')
 
     try {
+      if (!form.alertLat || !form.alertLng) {
+        setError('لطفاً موقعیت اضطراری را از بخش نقشه انتخاب کنید.')
+        return
+      }
+
       const payload = {
         alertLat: Number(form.alertLat),
         alertLng: Number(form.alertLng),
@@ -166,7 +176,7 @@ function EmergencyPage() {
     <PageLayout
       eyebrow="ایمنی و پشتیبانی"
       title="هشدار اضطراری"
-      description="این صفحه با endpointهای emergency-alerts کار می‌کند و برای ارسال، مشاهده، لغو یا رسیدگی به هشدارهای توان‌خواه و سرپرست ساخته شده است."
+      description="در شرایط حساس می‌توانید موقعیت اضطراری را ثبت و وضعیت هشدارهای خود را پیگیری کنید."
     >
       <div className="space-y-7">
         <StatusMessage message={message} type={messageType} />
@@ -176,9 +186,18 @@ function EmergencyPage() {
             {user?.role === 'supervisor' && (
               <TextInput label="شناسه توان‌خواه" name="disId" value={form.disId} onChange={handleChange} dir="ltr" required />
             )}
-            <TextInput label="عرض جغرافیایی" name="alertLat" value={form.alertLat} onChange={handleChange} dir="ltr" required />
-            <TextInput label="طول جغرافیایی" name="alertLng" value={form.alertLng} onChange={handleChange} dir="ltr" required />
-            <TextInput label="آدرس تقریبی" name="address" value={form.address} onChange={handleChange} required={false} />
+            <LocationPicker
+              title="انتخاب موقعیت اضطراری"
+              description="موقعیت را با جستجو یا دکمه موقعیت فعلی انتخاب کنید."
+              lat={form.alertLat}
+              lng={form.alertLng}
+              address={form.address}
+              latName="alertLat"
+              lngName="alertLng"
+              addressName="address"
+              onChange={handleLocationChange}
+              required
+            />
             <div className="md:col-span-2">
               <PrimaryButton type="submit" disabled={isBusy} danger>ارسال هشدار اضطراری</PrimaryButton>
             </div>

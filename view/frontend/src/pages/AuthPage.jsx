@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout.jsx'
 import FormField from '../components/FormField.jsx'
 import RoleSwitch from '../components/RoleSwitch.jsx'
@@ -14,9 +14,14 @@ const initialSignup = {
   province: '',
   city: '',
   homeAddress: '',
-  accessibilityNeed: '',
   password: '',
   confirmPassword: '',
+}
+
+const codeFieldMap = {
+  NATIONAL_CODE_ALREADY_EXISTS: 'nationalCode',
+  PHONE_ALREADY_EXISTS: 'phone',
+  DUPLICATE_USER: 'nationalCode',
 }
 
 function Divider() {
@@ -31,33 +36,59 @@ function Divider() {
 
 function AuthPage({ mode }) {
   const [role, setRole] = useState('disabled')
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const sessionExpiredMessage = searchParams.get('expired') === '1' ? 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.' : ''
   const [loginForm, setLoginForm] = useState({ nationalCode: '', password: '' })
   const [signupForm, setSignupForm] = useState(initialSignup)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState(sessionExpiredMessage)
+  const [fieldErrors, setFieldErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const navigate = useNavigate()
   const isSignup = mode === 'signup'
   const isLogout = mode === 'logout'
 
   useEffect(() => {
-    if (isLogout) {
+    if (isLogout || searchParams.get('expired') === '1') {
       clearSession()
     }
-  }, [isLogout])
+  }, [isLogout, searchParams])
+
+  const clearFieldError = (name) => {
+    setFieldErrors((current) => {
+      if (!current[name]) {
+        return current
+      }
+
+      const next = { ...current }
+      delete next[name]
+      return next
+    })
+  }
 
   const handleLoginChange = (event) => {
     const { name, value } = event.target
+    clearFieldError(name)
     setLoginForm((current) => ({ ...current, [name]: value }))
   }
 
   const handleSignupChange = (event) => {
     const { name, value } = event.target
+    clearFieldError(name)
     setSignupForm((current) => ({ ...current, [name]: value }))
   }
+
+  const handleRoleChange = (nextRole) => {
+    setRole(nextRole)
+    setMessage('')
+    setFieldErrors({})
+  }
+
+  const getFieldError = (name) => fieldErrors[name]
 
   const handleSubmit = async (event) => {
     event.preventDefault()
     setMessage('')
+    setFieldErrors({})
     setIsSubmitting(true)
 
     try {
@@ -66,7 +97,6 @@ function AuthPage({ mode }) {
             ...signupForm,
             role,
             homeAddress: signupForm.homeAddress || undefined,
-            accessibilityNeed: signupForm.accessibilityNeed || undefined,
             province: signupForm.province || undefined,
             city: signupForm.city || undefined,
           })
@@ -79,6 +109,14 @@ function AuthPage({ mode }) {
 
       navigate('/dashboard')
     } catch (error) {
+      const nextFieldErrors = { ...(error.fields || {}) }
+      const mappedField = codeFieldMap[error.code]
+
+      if (mappedField && !nextFieldErrors[mappedField]) {
+        nextFieldErrors[mappedField] = error.message
+      }
+
+      setFieldErrors(nextFieldErrors)
       setMessage(error.message)
     } finally {
       setIsSubmitting(false)
@@ -88,12 +126,12 @@ function AuthPage({ mode }) {
   if (isLogout) {
     return (
       <AuthLayout>
-        <section className="w-full max-w-[308px] text-center">
-          <h1 className="text-[32px] font-extrabold tracking-[-0.03em] text-[#172033] sm:text-[34px]">خارج شدید</h1>
+        <section className="w-full text-center">
+          <h1 className="text-[34px] font-bold tracking-[-0.03em] text-[#172033] sm:text-[34px]">خارج شدید</h1>
           <p className="mt-5 text-[14px] leading-6 text-[#59677c]">شما با موفقیت از حساب کاربری مهرگام خارج شدید.</p>
           <Link
             to="/login"
-            className="mt-8 inline-flex h-[42px] w-full items-center justify-center rounded-[10px] bg-[#8dc9c0] text-[14px] font-medium text-white shadow-[0_3px_5px_rgba(65,111,105,0.25)] transition hover:bg-[#7dbeb5] focus:outline-none focus:ring-4 focus:ring-[#9fd7cf]/35"
+            className="mt-8 inline-flex h-[42px] w-full items-center justify-center rounded-[10px] bg-[#8dc9c0] text-[14px] font-medium text-white shadow-[0_3px_5px_rgba(65,111,105,0.25)] transition hover:-translate-y-0.5 hover:bg-[#7dbeb5] hover:shadow-[0_10px_22px_rgba(65,111,105,0.22)] focus:outline-none focus:ring-4 focus:ring-[#9fd7cf]/35"
           >
             بازگشت به ورود
           </Link>
@@ -104,19 +142,19 @@ function AuthPage({ mode }) {
 
   return (
     <AuthLayout>
-      <section className="w-full max-w-[340px] text-center">
-        <h1 className="text-[32px] font-extrabold tracking-[-0.03em] text-[#172033] sm:text-[34px]">خوش آمدید</h1>
+      <section className="w-full text-center animate-fade-in">
+        <h1 className="text-[34px] font-bold tracking-[-0.03em] text-[#172033] sm:text-[34px]">خوش آمدید</h1>
 
         <div className="mt-8 flex justify-center">
-          <RoleSwitch value={role} onChange={setRole} />
+          <RoleSwitch value={role} onChange={handleRoleChange} />
         </div>
 
-        <form className="mt-9 space-y-5" onSubmit={handleSubmit}>
+        <form className="mt-9 space-y-5" onSubmit={handleSubmit} noValidate>
           {isSignup ? (
             <>
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField id="firstName" label="نام" value={signupForm.firstName} onChange={handleSignupChange} autoComplete="given-name" />
-                <FormField id="lastName" label="نام خانوادگی" value={signupForm.lastName} onChange={handleSignupChange} autoComplete="family-name" />
+                <FormField id="firstName" label="نام" value={signupForm.firstName} onChange={handleSignupChange} autoComplete="given-name" error={getFieldError('firstName')} />
+                <FormField id="lastName" label="نام خانوادگی" value={signupForm.lastName} onChange={handleSignupChange} autoComplete="family-name" error={getFieldError('lastName')} />
               </div>
               <FormField
                 id="nationalCode"
@@ -126,6 +164,7 @@ function AuthPage({ mode }) {
                 placeholder="۱۰ رقم"
                 autoComplete="off"
                 inputDir="ltr"
+                error={getFieldError('nationalCode')}
               />
               <FormField
                 id="phone"
@@ -136,23 +175,14 @@ function AuthPage({ mode }) {
                 placeholder="09xxxxxxxxx"
                 autoComplete="tel"
                 inputDir="ltr"
+                error={getFieldError('phone')}
               />
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField id="province" label="استان" value={signupForm.province} onChange={handleSignupChange} required={false} />
-                <FormField id="city" label="شهر" value={signupForm.city} onChange={handleSignupChange} required={false} />
+                <FormField id="province" label="استان" value={signupForm.province} onChange={handleSignupChange} required={false} error={getFieldError('province')} />
+                <FormField id="city" label="شهر" value={signupForm.city} onChange={handleSignupChange} required={false} error={getFieldError('city')} />
               </div>
               {role !== 'supervisor' && (
-                <FormField id="homeAddress" label="آدرس منزل" value={signupForm.homeAddress} onChange={handleSignupChange} />
-              )}
-              {role === 'disabled' && (
-                <FormField
-                  id="accessibilityNeed"
-                  label="نیاز دسترس‌پذیری"
-                  value={signupForm.accessibilityNeed}
-                  onChange={handleSignupChange}
-                  placeholder="مثلاً ویلچر، کم‌بینایی یا همراهی بیشتر"
-                  required={false}
-                />
+                <FormField id="homeAddress" label="آدرس منزل" value={signupForm.homeAddress} onChange={handleSignupChange} error={getFieldError('homeAddress')} />
               )}
               <FormField
                 id="password"
@@ -162,6 +192,7 @@ function AuthPage({ mode }) {
                 onChange={handleSignupChange}
                 placeholder="حداقل ۶ کاراکتر"
                 autoComplete="new-password"
+                error={getFieldError('password')}
               />
               <FormField
                 id="confirmPassword"
@@ -171,6 +202,7 @@ function AuthPage({ mode }) {
                 onChange={handleSignupChange}
                 placeholder="تکرار رمز عبور"
                 autoComplete="new-password"
+                error={getFieldError('confirmPassword')}
               />
             </>
           ) : (
@@ -183,6 +215,7 @@ function AuthPage({ mode }) {
                 placeholder="۱۰ رقم"
                 autoComplete="off"
                 inputDir="ltr"
+                error={getFieldError('nationalCode')}
               />
               <FormField
                 id="password"
@@ -192,16 +225,17 @@ function AuthPage({ mode }) {
                 onChange={handleLoginChange}
                 placeholder="حداقل ۶ کاراکتر"
                 autoComplete="current-password"
+                error={getFieldError('password')}
               />
             </>
           )}
 
-          {message && <p className="rounded-[12px] bg-[#fff4f4] px-4 py-3 text-[12px] font-semibold text-[#d94d4d]">{message}</p>}
+          {message && <p className="rounded-[12px] bg-[#fff4f4] px-4 py-3 text-[12px] font-semibold leading-6 text-[#d94d4d]">{message}</p>}
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="h-[42px] w-full rounded-[10px] bg-[#8dc9c0] text-[14px] font-medium text-white shadow-[0_3px_5px_rgba(65,111,105,0.25)] transition hover:bg-[#7dbeb5] focus:outline-none focus:ring-4 focus:ring-[#9fd7cf]/35 disabled:cursor-not-allowed disabled:opacity-60"
+            className="shine-button h-[42px] w-full rounded-[10px] bg-[#8dc9c0] text-[14px] font-medium text-white shadow-[0_3px_5px_rgba(65,111,105,0.25)] transition hover:-translate-y-0.5 hover:bg-[#7dbeb5] hover:shadow-[0_12px_26px_rgba(65,111,105,0.24)] focus:outline-none focus:ring-4 focus:ring-[#9fd7cf]/35 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? 'در حال ارسال...' : isSignup ? 'ثبت‌نام' : 'ورود'}
           </button>
@@ -213,7 +247,7 @@ function AuthPage({ mode }) {
 
         <p className="mt-12 text-[13px] text-[#263246]">
           {isSignup ? 'قبلاً حساب کاربری دارید؟' : 'حساب کاربری ندارید؟'}{' '}
-          <Link to={isSignup ? '/login' : '/signup'} className="font-medium text-[#00b7a8] hover:text-[#079b90]">
+          <Link to={isSignup ? '/login' : '/signup'} className="font-bold text-[#00b7a8] transition hover:text-[#079b90]">
             {isSignup ? 'ورود' : 'ثبت‌نام'}
           </Link>
         </p>
