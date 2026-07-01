@@ -26,7 +26,7 @@ router.get(
 
 router.post(
   '/distance-estimate',
-  authorize('disabled', 'supervisor', 'volunteer'),
+  authorize('disabled', 'supervisor'),
   validate(distanceEstimateSchema),
   asyncHandler(mapController.estimateDistance)
 );

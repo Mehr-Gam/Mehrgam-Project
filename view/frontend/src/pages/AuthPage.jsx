@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout.jsx'
-import FormField from '../components/FormField.jsx'
+import FormField, { SelectFormField } from '../components/FormField.jsx'
 import RoleSwitch from '../components/RoleSwitch.jsx'
 import { authApi } from '../services/api.js'
 import { clearSession, saveSession } from '../utils/auth.js'
+import { getCityOptions, getProvinceOptions } from '../utils/iranLocations.js'
 
 const initialSignup = {
   firstName: '',
@@ -46,6 +47,8 @@ function AuthPage({ mode }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isSignup = mode === 'signup'
   const isLogout = mode === 'logout'
+  const provinceOptions = getProvinceOptions()
+  const cityOptions = getCityOptions(signupForm.province)
 
   useEffect(() => {
     if (isLogout || searchParams.get('expired') === '1') {
@@ -74,6 +77,13 @@ function AuthPage({ mode }) {
   const handleSignupChange = (event) => {
     const { name, value } = event.target
     clearFieldError(name)
+
+    if (name === 'province') {
+      clearFieldError('city')
+      setSignupForm((current) => ({ ...current, province: value, city: '' }))
+      return
+    }
+
     setSignupForm((current) => ({ ...current, [name]: value }))
   }
 
@@ -145,11 +155,13 @@ function AuthPage({ mode }) {
       <section className="w-full text-center animate-fade-in">
         <h1 className="text-[34px] font-bold tracking-[-0.03em] text-[#172033] sm:text-[34px]">خوش آمدید</h1>
 
-        <div className="mt-8 flex justify-center">
-          <RoleSwitch value={role} onChange={handleRoleChange} />
-        </div>
+        {isSignup && (
+          <div className="mt-8 flex justify-center">
+            <RoleSwitch value={role} onChange={handleRoleChange} />
+          </div>
+        )}
 
-        <form className="mt-9 space-y-5" onSubmit={handleSubmit} noValidate>
+        <form className={isSignup ? 'mt-9 space-y-5' : 'mt-10 space-y-5'} onSubmit={handleSubmit} noValidate>
           {isSignup ? (
             <>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -178,8 +190,25 @@ function AuthPage({ mode }) {
                 error={getFieldError('phone')}
               />
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField id="province" label="استان" value={signupForm.province} onChange={handleSignupChange} required={false} error={getFieldError('province')} />
-                <FormField id="city" label="شهر" value={signupForm.city} onChange={handleSignupChange} required={false} error={getFieldError('city')} />
+                <SelectFormField
+                  id="province"
+                  label="استان"
+                  value={signupForm.province}
+                  onChange={handleSignupChange}
+                  options={provinceOptions}
+                  required={false}
+                  error={getFieldError('province')}
+                />
+                <SelectFormField
+                  id="city"
+                  label="شهر"
+                  value={signupForm.city}
+                  onChange={handleSignupChange}
+                  options={cityOptions}
+                  required={false}
+                  disabled={!signupForm.province}
+                  error={getFieldError('city')}
+                />
               </div>
               {role !== 'supervisor' && (
                 <FormField id="homeAddress" label="آدرس منزل" value={signupForm.homeAddress} onChange={handleSignupChange} error={getFieldError('homeAddress')} />

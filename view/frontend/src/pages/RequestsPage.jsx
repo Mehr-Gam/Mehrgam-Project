@@ -2,30 +2,52 @@ import { useEffect, useState } from 'react'
 import PageLayout from '../components/PageLayout.jsx'
 import LocationPicker from '../components/LocationPicker.jsx'
 import Panel from '../components/Panel.jsx'
-import { PrimaryButton, SelectInput, StatusMessage, TextArea, TextInput } from '../components/FormControls.jsx'
+import { JalaliDateTimeInput, PrimaryButton, SelectInput, StatusMessage, TextArea, TextInput } from '../components/FormControls.jsx'
 import { serviceRequestApi } from '../services/api.js'
 import { getStoredUser } from '../utils/auth.js'
+import { getCurrentTehranJalaliDateTime, isJalaliDateBeforeToday, toIsoFromJalaliTehranDateTime } from '../utils/jalaliDate.js'
 import { formatDate, formatMeters, requestTypeLabels, statusLabels } from '../utils/labels.js'
 
-const initialRequestForm = {
-  disId: '',
-  requestType: 'medical',
-  requestedTime: '',
-  originAddress: '',
-  originLat: '',
-  originLng: '',
-  destinationAddress: '',
-  destinationLat: '',
-  destinationLng: '',
-  description: '',
+const createInitialRequestForm = () => {
+  const tehranDateTime = getCurrentTehranJalaliDateTime()
+
+  return {
+    disId: '',
+    requestType: 'medical',
+    requestedJalaliDate: tehranDateTime.date,
+    requestedTehranTime: tehranDateTime.time,
+    originAddress: '',
+    originLat: '',
+    originLng: '',
+    destinationAddress: '',
+    destinationLat: '',
+    destinationLng: '',
+    description: '',
+  }
 }
 
 const typeOptions = Object.entries(requestTypeLabels).map(([value, label]) => ({ value, label }))
+
+const mergeRequestsById = (requestItems) => {
+  const seen = new Map()
+
+  requestItems.forEach((item) => {
+    if (item?.requestId) {
+      seen.set(item.requestId, item)
+    }
+  })
+
+  return Array.from(seen.values()).sort((first, second) => new Date(second.createdAt || second.requestedTime) - new Date(first.createdAt || first.requestedTime))
+}
 
 const toOptionalNumber = (value) => (value === '' || value === null || value === undefined ? undefined : Number(value))
 const toOptionalText = (value) => (value ? value : undefined)
 
 function RequestCard({ request, onCancel, onAccept, onFinish, isVolunteer, isBusy }) {
+  const canAccept = request.status === 'pending'
+  const canFinish = ['accepted', 'in_progress', 'started'].includes(request.status)
+  const canCancel = !['cancelled', 'finished'].includes(request.status)
+
   return (
     <article className="rounded-[20px] border border-[#eff4f8] bg-[#fbfdff] p-5">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
@@ -50,7 +72,7 @@ function RequestCard({ request, onCancel, onAccept, onFinish, isVolunteer, isBus
           {request.description && <p className="mt-3 text-[13px] leading-7 text-[#536174]">{request.description}</p>}
           {isVolunteer && (
             <p className="mt-3 text-[13px] font-bold text-[#55b7ad]">
-              فاصله مسیر: {request.approxDistanceText || formatMeters(request.approxDistanceMeters)} • زمان مسیر: {request.approxDurationText || `${request.approxDurationMinutes || '—'} دقیقه`}
+              فاصله تقریبی: {formatMeters(request.approxDistanceMeters)} • زمان تقریبی: {request.approxDurationMinutes || '—'} دقیقه
             </p>
           )}
         </div>
@@ -58,9 +80,9 @@ function RequestCard({ request, onCancel, onAccept, onFinish, isVolunteer, isBus
         <div className="flex flex-wrap gap-2 md:justify-end">
           {isVolunteer ? (
             <>
-              <PrimaryButton disabled={isBusy} onClick={() => onAccept(request.requestId)}>پذیرش</PrimaryButton>
-              <PrimaryButton disabled={isBusy} onClick={() => onFinish(request.requestId)}>اتمام</PrimaryButton>
-              <PrimaryButton disabled={isBusy} danger onClick={() => onCancel(request.requestId)}>لغو</PrimaryButton>
+              {canAccept && <PrimaryButton disabled={isBusy} onClick={() => onAccept(request.requestId)}>پذیرش</PrimaryButton>}
+              {canFinish && <PrimaryButton disabled={isBusy} onClick={() => onFinish(request.requestId)}>اتمام</PrimaryButton>}
+              {canCancel && <PrimaryButton disabled={isBusy} danger onClick={() => onCancel(request.requestId)}>لغو</PrimaryButton>}
             </>
           ) : (
             <PrimaryButton disabled={isBusy || request.status === 'cancelled' || request.status === 'finished'} danger onClick={() => onCancel(request.requestId)}>
@@ -75,7 +97,7 @@ function RequestCard({ request, onCancel, onAccept, onFinish, isVolunteer, isBus
 
 function RequestsPage() {
   const user = getStoredUser()
-  const [form, setForm] = useState(initialRequestForm)
+  const [form, setForm] = useState(() => createInitialRequestForm())
   const [requests, setRequests] = useState([])
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('info')
@@ -99,8 +121,17 @@ function RequestsPage() {
     setMessage('')
 
     try {
-      const result = isVolunteer ? await serviceRequestApi.getAvailable() : await serviceRequestApi.getMy()
-      setRequests(result.data.requests || [])
+      const result = isVolunteer
+        ? await Promise.all([serviceRequestApi.getAvailable(), serviceRequestApi.getVolunteerAccepted()])
+        : await serviceRequestApi.getMy()
+
+      if (isVolunteer) {
+        const [availableResult, acceptedResult] = result
+        const mergedRequests = [...(acceptedResult.data.requests || []), ...(availableResult.data.requests || [])]
+        setRequests(mergeRequestsById(mergedRequests))
+      } else {
+        setRequests(result.data.requests || [])
+      }
     } catch (error) {
       setError(error.message)
     } finally {
@@ -113,10 +144,18 @@ function RequestsPage() {
 
     const fetchRequests = async () => {
       try {
-        const result = isVolunteer ? await serviceRequestApi.getAvailable() : await serviceRequestApi.getMy()
+        const result = isVolunteer
+          ? await Promise.all([serviceRequestApi.getAvailable(), serviceRequestApi.getVolunteerAccepted()])
+          : await serviceRequestApi.getMy()
 
         if (isMounted) {
-          setRequests(result.data.requests || [])
+          if (isVolunteer) {
+            const [availableResult, acceptedResult] = result
+            const mergedRequests = [...(acceptedResult.data.requests || []), ...(availableResult.data.requests || [])]
+            setRequests(mergeRequestsById(mergedRequests))
+          } else {
+            setRequests(result.data.requests || [])
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -153,9 +192,14 @@ function RequestsPage() {
         return
       }
 
+      if (isJalaliDateBeforeToday(form.requestedJalaliDate)) {
+        setError('تاریخ درخواست نمی‌تواند قبل از امروز باشد.')
+        return
+      }
+
       const payload = {
         requestType: form.requestType,
-        requestedTime: new Date(form.requestedTime).toISOString(),
+        requestedTime: toIsoFromJalaliTehranDateTime(form.requestedJalaliDate, form.requestedTehranTime),
         originAddress: toOptionalText(form.originAddress),
         originLat: Number(form.originLat),
         originLng: Number(form.originLng),
@@ -170,7 +214,7 @@ function RequestsPage() {
       }
 
       await serviceRequestApi.create(payload)
-      setForm(initialRequestForm)
+      setForm(createInitialRequestForm())
       setSuccess('درخواست همراهی با موفقیت ثبت شد.')
       await loadRequests()
     } catch (error) {
@@ -241,13 +285,13 @@ function RequestsPage() {
                 <TextInput label="شناسه توان‌خواه" name="disId" value={form.disId} onChange={handleChange} dir="ltr" required />
               )}
               <SelectInput label="نوع درخواست" name="requestType" value={form.requestType} onChange={handleChange} options={typeOptions} required />
-              <TextInput
+              <JalaliDateTimeInput
                 label="زمان موردنظر"
-                name="requestedTime"
-                type="datetime-local"
-                value={form.requestedTime}
+                dateName="requestedJalaliDate"
+                timeName="requestedTehranTime"
+                dateValue={form.requestedJalaliDate}
+                timeValue={form.requestedTehranTime}
                 onChange={handleChange}
-                dir="ltr"
                 required
               />
               <LocationPicker

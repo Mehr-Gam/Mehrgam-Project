@@ -103,7 +103,7 @@ function LocationPicker({ title, description, lat, lng, address, latName, lngNam
 
   useEffect(() => {
     if (address !== undefined) {
-      setSearchQuery(address || '')
+      queueMicrotask(() => setSearchQuery(address || ''))
     }
   }, [address])
 
@@ -151,7 +151,6 @@ function LocationPicker({ title, description, lat, lng, address, latName, lngNam
     let isMounted = true
 
     if (!mapApiKey) {
-      setMapError('برای نمایش نقشه نشان، مقدار VITE_NESHAN_WEB_API_KEY را در فایل .env فرانت‌اند قرار دهید.')
       return undefined
     }
 
@@ -316,11 +315,6 @@ function LocationPicker({ title, description, lat, lng, address, latName, lngNam
           </h3>
           {description && <p className="mt-2 text-[12px] leading-6 text-[#7b8796]">{description}</p>}
         </div>
-        {hasSelectedLocation && (
-          <span className="rounded-full bg-[#eef9f7] px-3 py-1.5 text-[11px] font-bold text-[#55b7ad]" dir="ltr">
-            {Number(lat).toFixed(4)}, {Number(lng).toFixed(4)}
-          </span>
-        )}
       </div>
 
       <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSearch}>
@@ -348,7 +342,11 @@ function LocationPicker({ title, description, lat, lng, address, latName, lngNam
       </form>
 
       {error && <p className="mt-3 rounded-[12px] bg-[#fff4f4] px-4 py-3 text-[12px] font-semibold text-[#d94d4d]">{error}</p>}
-      {mapError && <p className="mt-3 rounded-[12px] bg-[#fff8e8] px-4 py-3 text-[12px] font-semibold text-[#9a6a00]">{mapError}</p>}
+      {(mapError || !mapApiKey) && (
+        <p className="mt-3 rounded-[12px] bg-[#fff8e8] px-4 py-3 text-[12px] font-semibold text-[#9a6a00]">
+          {mapError || 'برای نمایش نقشه نشان، مقدار VITE_NESHAN_WEB_API_KEY را در فایل .env فرانت‌اند قرار دهید.'}
+        </p>
+      )}
 
       {results.length > 0 && (
         <div className="mt-3 overflow-hidden rounded-[16px] border border-[#eaf1f7] bg-white">
