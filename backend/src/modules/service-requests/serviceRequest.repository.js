@@ -255,6 +255,43 @@ export const findAvailableRequestsForVolunteer = async (volId) => {
   return result.rows;
 };
 
+
+export const findAcceptedRequestsForVolunteer = async (volId) => {
+  const result = await query(
+    `
+    SELECT DISTINCT ON (sr.request_id)
+      sr.request_id,
+      sr.dis_id,
+      sr.sup_id,
+      sr.requester_user_id,
+      sr.request_type,
+      sr.requested_time,
+      sr.origin_address,
+      sr.origin_lat,
+      sr.origin_lng,
+      sr.destination_address,
+      sr.destination_lat,
+      sr.destination_lng,
+      sr.description,
+      sr.status,
+      sr.created_at,
+      sr.updated_at,
+      du.first_name AS disabled_first_name,
+      du.last_name AS disabled_last_name
+    FROM request_accepts ra
+    JOIN service_requests sr ON sr.request_id = ra.request_id
+    JOIN disabled d ON d.dis_id = sr.dis_id
+    JOIN users du ON du.user_id = d.user_id
+    WHERE ra.vol_id = $1
+      AND sr.status IN ('in_progress', 'finished')
+    ORDER BY sr.request_id, ra.accepted_at DESC
+    `,
+    [volId]
+  );
+
+  return result.rows;
+};
+
 export const acceptRequest = async ({
   requestId,
   volId,

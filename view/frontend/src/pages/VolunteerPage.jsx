@@ -168,6 +168,22 @@ function VolunteerPage() {
     }
   }
 
+
+  const deleteAvailability = async (availabilityId) => {
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      await volunteerApi.deleteAvailability(availabilityId)
+      setSuccess('زمان آزاد حذف شد.')
+      await loadProfile()
+    } catch (error) {
+      setError(error.message)
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
   return (
     <PageLayout
       eyebrow="پنل داوطلب"
@@ -240,9 +256,14 @@ function VolunteerPage() {
                   <p className="text-[14px] font-bold text-[#172033]">
                     {weekDayLabels[item.weekday]}، از <span dir="ltr">{item.startTime}</span> تا <span dir="ltr">{item.endTime}</span>
                   </p>
-                  <PrimaryButton disabled={isBusy || item.isActive === false} danger onClick={() => deactivateAvailability(item.availabilityId || item.availId)}>
-                    غیرفعال‌سازی
-                  </PrimaryButton>
+                  <div className="flex flex-wrap gap-2">
+                    <PrimaryButton disabled={isBusy || item.isActive === false} onClick={() => deactivateAvailability(item.availabilityId || item.availId)}>
+                      غیرفعال‌سازی
+                    </PrimaryButton>
+                    <PrimaryButton disabled={isBusy} danger onClick={() => deleteAvailability(item.availabilityId || item.availId)}>
+                      حذف
+                    </PrimaryButton>
+                  </div>
                 </div>
               ))
             )}

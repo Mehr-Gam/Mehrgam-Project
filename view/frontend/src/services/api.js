@@ -169,6 +169,7 @@ export const serviceRequestApi = {
   create: (payload) => api.post('/service-requests', payload),
   getMy: () => api.get('/service-requests/my'),
   getAvailable: () => api.get('/service-requests/available'),
+  getVolunteerAccepted: () => api.get('/service-requests/volunteer/my'),
   accept: (requestId) => api.post(`/service-requests/${requestId}/accept`),
   finish: (requestId) => api.patch(`/service-requests/${requestId}/finish`),
   cancel: (requestId) => api.patch(`/service-requests/${requestId}/cancel`),
@@ -196,6 +197,7 @@ export const volunteerApi = {
   createAvailability: (payload) => api.post('/volunteers/me/availability', payload),
   getAvailability: () => api.get('/volunteers/me/availability'),
   deactivateAvailability: (availabilityId) => api.patch(`/volunteers/me/availability/${availabilityId}/deactivate`),
+  deleteAvailability: (availabilityId) => api.delete(`/volunteers/me/availability/${availabilityId}`),
 }
 
 export const supervisorApi = {

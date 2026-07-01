@@ -49,14 +49,12 @@ const callNeshanGet = async ({ url, errorCode }) => {
   return result;
 };
 
-const formatCoordinate = ({ lat, lng }) => `${lat},${lng}`;
-
-const buildDistanceMatrixUrl = ({ origins, destinations, type }) => {
+const buildDistanceMatrixUrl = ({ origin, destination, type }) => {
   const url = new URL(NESHAN_DISTANCE_MATRIX_URL);
 
   url.searchParams.set('type', type);
-  url.searchParams.set('origins', origins.map(formatCoordinate).join('|'));
-  url.searchParams.set('destinations', destinations.map(formatCoordinate).join('|'));
+  url.searchParams.set('origins', `${origin.lat},${origin.lng}`);
+  url.searchParams.set('destinations', `${destination.lat},${destination.lng}`);
 
   return url;
 };
@@ -175,9 +173,16 @@ export const reverseGeocode = async ({ lat, lng }) => {
   };
 };
 
-const normalizeDistanceMatrixEstimate = ({ result, type, origin, destination, element, destinationIndex }) => {
-  if (!element || element.status !== 'Ok' || !element.distance || !element.duration) {
-    return null;
+export const getDistanceEstimate = async ({ origin, destination, type = 'car' }) => {
+  const result = await callNeshanGet({
+    url: buildDistanceMatrixUrl({ origin, destination, type }),
+    errorCode: 'NESHAN_SERVICE_ERROR'
+  });
+
+  const element = result?.rows?.[0]?.elements?.[0];
+
+  if (result.status !== 'Ok' || !element || element.status !== 'Ok') {
+    throw new ApiError(502, 'Could not calculate route distance', 'NESHAN_DISTANCE_FAILED', result);
   }
 
   return {
@@ -191,58 +196,16 @@ const normalizeDistanceMatrixEstimate = ({ result, type, origin, destination, el
     destination: {
       lat: destination.lat,
       lng: destination.lng,
-      address: result.destination_addresses?.[destinationIndex] || null
+      address: result.destination_addresses?.[0] || null
     },
     distance: {
-      value: Number(element.distance.value),
+      value: element.distance.value,
       text: element.distance.text
     },
     duration: {
-      value: Number(element.duration.value),
+      value: element.duration.value,
       text: element.duration.text,
-      minutes: Math.ceil(Number(element.duration.value) / 60)
+      minutes: Math.ceil(element.duration.value / 60)
     }
   };
-};
-
-export const getDistanceMatrixEstimates = async ({ origin, destinations, type = 'car' }) => {
-  if (!Array.isArray(destinations) || destinations.length === 0) {
-    return [];
-  }
-
-  const result = await callNeshanGet({
-    url: buildDistanceMatrixUrl({ origins: [origin], destinations, type }),
-    errorCode: 'NESHAN_DISTANCE_MATRIX_ERROR'
-  });
-
-  if (result.status !== 'Ok') {
-    throw new ApiError(502, 'Could not calculate route distances', 'NESHAN_DISTANCE_FAILED', result);
-  }
-
-  const elements = result?.rows?.[0]?.elements || [];
-
-  return destinations.map((destination, index) =>
-    normalizeDistanceMatrixEstimate({
-      result,
-      type,
-      origin,
-      destination,
-      element: elements[index],
-      destinationIndex: index
-    })
-  );
-};
-
-export const getDistanceEstimate = async ({ origin, destination, type = 'car' }) => {
-  const [estimate] = await getDistanceMatrixEstimates({
-    origin,
-    destinations: [destination],
-    type
-  });
-
-  if (!estimate) {
-    throw new ApiError(502, 'Could not calculate route distance', 'NESHAN_DISTANCE_FAILED');
-  }
-
-  return estimate;
 };

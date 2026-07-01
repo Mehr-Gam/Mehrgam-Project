@@ -36,6 +36,18 @@ export const getAvailableRequests = async (req, res) => {
   });
 };
 
+
+export const getAcceptedForVolunteer = async (req, res) => {
+  const requests = await serviceRequestService.getAcceptedRequestsForVolunteer(req.user);
+
+  res.json({
+    success: true,
+    data: {
+      requests
+    }
+  });
+};
+
 export const accept = async (req, res) => {
   const result = await serviceRequestService.acceptServiceRequestForMe({
     user: req.user,

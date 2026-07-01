@@ -25,6 +25,13 @@ router.get(
   asyncHandler(serviceRequestController.getMyRequests)
 );
 
+
+router.get(
+  '/volunteer/my',
+  requireApprovedVolunteer,
+  asyncHandler(serviceRequestController.getAcceptedForVolunteer)
+);
+
 router.get(
   '/available',
   requireApprovedVolunteer,

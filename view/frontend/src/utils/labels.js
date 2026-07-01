@@ -26,16 +26,44 @@ export const statusLabels = {
 
 export const weekDayLabels = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه']
 
+const parseTimestampAsTehranWallTime = (value) => {
+  if (typeof value !== 'string') {
+    return new Date(value)
+  }
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/)
+
+  if (!match) {
+    return new Date(value)
+  }
+
+  const [, year, month, day, hour, minute, second = '0'] = match
+  const tehranOffsetMinutes = 3 * 60 + 30
+  const utcMilliseconds = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+  ) - tehranOffsetMinutes * 60 * 1000
+
+  return new Date(utcMilliseconds)
+}
+
 export const formatDate = (value) => {
   if (!value) {
     return '—'
   }
 
   try {
-    return new Intl.DateTimeFormat('fa-IR', {
+    return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+      calendar: 'persian',
+      numberingSystem: 'arabext',
+      timeZone: 'Asia/Tehran',
       dateStyle: 'medium',
       timeStyle: 'short',
-    }).format(new Date(value))
+    }).format(parseTimestampAsTehranWallTime(value))
   } catch {
     return value
   }
